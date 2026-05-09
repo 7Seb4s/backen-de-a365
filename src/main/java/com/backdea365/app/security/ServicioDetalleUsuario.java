@@ -1,12 +1,5 @@
 package com.backdea365.app.security;
 
-// ─────────────────────────────────────────────────────────────
-// ServicioDetalleUsuario.java
-// Implementa UserDetailsService de Spring Security.
-// Su único trabajo es cargar un usuario desde la base de datos
-// dado su código, para que Spring Security pueda autenticarlo.
-// ─────────────────────────────────────────────────────────────
-
 import com.backdea365.app.model.UsuarioLogin;
 import com.backdea365.app.repository.RepositorioUsuario;
 import lombok.RequiredArgsConstructor;
@@ -19,24 +12,23 @@ import org.springframework.stereotype.Service;
 
 import java.util.List;
 
+// Carga los datos del usuario desde la BD para que Spring Security pueda autenticarlo
+// Spring Security llama a este servicio cuando recibe un token JWT valido
 @Service
 @RequiredArgsConstructor
 public class ServicioDetalleUsuario implements UserDetailsService {
 
     private final RepositorioUsuario repositorioUsuario;
 
-    // ── CARGAR USUARIO POR CÓDIGO ─────────────────────────────
-    // Spring Security llama a este método cuando necesita verificar
-    // quién es el usuario que viene en el token JWT.
-    // Busca en la tabla usuarios_login usando el stored procedure
-    // sp_buscar_usuario_por_codigo.
+    // Busca el usuario por su codigo de trabajador y devuelve sus datos a Spring Security
+    // Llama al stored procedure sp_buscar_usuario_por_codigo
     @Override
     public UserDetails loadUserByUsername(String codigo) throws UsernameNotFoundException {
 
-        // Buscar el usuario activo en la base de datos
+        // Buscar el usuario activo en la BD
         UsuarioLogin usuario = repositorioUsuario.buscarPorCodigo(codigo)
                 .orElseThrow(() -> new UsernameNotFoundException(
-                        "Usuario no encontrado con código: " + codigo
+                        "Usuario no encontrado con codigo: " + codigo
                 ));
 
         // Convertir el rol al formato que espera Spring Security (ROLE_EMPLEADO, etc.)

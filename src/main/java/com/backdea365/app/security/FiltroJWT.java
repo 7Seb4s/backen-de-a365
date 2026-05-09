@@ -1,14 +1,5 @@
 package com.backdea365.app.security;
 
-// ─────────────────────────────────────────────────────────────
-// FiltroJWT.java
-// Intercepta cada petición HTTP antes de que llegue al controlador.
-// Si el header Authorization tiene un token válido, autentica al usuario
-// y Spring Security le permite continuar.
-// Si no hay token o es inválido, la petición sigue sin autenticación
-// (Spring Security la bloqueará si la ruta es protegida).
-// ─────────────────────────────────────────────────────────────
-
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -23,6 +14,8 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 
+// Intercepta cada peticion HTTP y valida el token JWT del header Authorization
+// Si el token es valido, autentica al usuario para que pueda acceder a rutas protegidas
 @Component
 @RequiredArgsConstructor
 public class FiltroJWT extends OncePerRequestFilter {
@@ -37,7 +30,7 @@ public class FiltroJWT extends OncePerRequestFilter {
             FilterChain cadena
     ) throws ServletException, IOException {
 
-        // Leer el header Authorization de la petición
+        // Leer el header Authorization de la peticion
         final String headerAuth = peticion.getHeader("Authorization");
 
         // Si no hay header o no empieza con "Bearer ", dejamos pasar sin autenticar
@@ -46,19 +39,19 @@ public class FiltroJWT extends OncePerRequestFilter {
             return;
         }
 
-        // Extraer el token (quitando el prefijo "Bearer ")
+        // Extraer el token quitando el prefijo "Bearer "
         final String token = headerAuth.substring(7);
 
-        // Validar el token y autenticar si es correcto
+        // Validar el token: si es correcto autenticamos al usuario
         if (utilJWT.esTokenValido(token)) {
 
-            // Obtener el código del usuario desde el token
+            // Obtener el codigo del usuario desde el payload del token
             String codigo = utilJWT.extraerCodigo(token);
 
-            // Cargar los detalles del usuario desde la base de datos
+            // Cargar los detalles del usuario desde la BD
             UserDetails userDetails = userDetailsService.loadUserByUsername(codigo);
 
-            // Crear el objeto de autenticación para Spring Security
+            // Crear el objeto de autenticacion para Spring Security
             UsernamePasswordAuthenticationToken autenticacion =
                     new UsernamePasswordAuthenticationToken(
                             userDetails,
@@ -66,7 +59,7 @@ public class FiltroJWT extends OncePerRequestFilter {
                             userDetails.getAuthorities()
                     );
 
-            // Registrar la autenticación en el contexto de seguridad
+            // Registrar la autenticacion en el contexto de seguridad
             SecurityContextHolder.getContext().setAuthentication(autenticacion);
         }
 

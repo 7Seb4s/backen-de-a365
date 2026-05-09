@@ -1,14 +1,5 @@
 package com.backdea365.app.config;
 
-// -------------------------------------------------------------
-// ConfiguracionSeguridad.java
-// Define las reglas de seguridad de la aplicacion:
-//   - Que rutas son publicas (solo el login)
-//   - Que rutas requieren autenticacion (todo lo demas)
-//   - Configura CORS para permitir peticiones desde Angular
-//   - Registra el filtro JWT que valida el token en cada peticion
-// -------------------------------------------------------------
-
 import com.backdea365.app.security.FiltroJWT;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
@@ -33,6 +24,7 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import java.util.List;
 
+// Configura la seguridad del backend: rutas publicas, CORS, JWT y headers para Google
 @Configuration
 @EnableWebSecurity
 @RequiredArgsConstructor
@@ -41,70 +33,74 @@ public class ConfiguracionSeguridad {
     private final FiltroJWT filtroJWT;
     private final UserDetailsService userDetailsService;
 
-    // -- CADENA DE FILTROS DE SEGURIDAD ------------------------
-    // Configura que rutas son publicas y cuales requieren token JWT valido.
+    // Define que rutas son publicas y cuales requieren token JWT
     @Bean
     public SecurityFilterChain cadenaFiltros(HttpSecurity http) throws Exception {
         return http
-                // Desactivar CSRF: no es necesario con JWT stateless
+                // Desactiva CSRF porque usamos JWT, no sesiones de navegador
                 .csrf(csrf -> csrf.disable())
 
-                // Activar CORS para permitir peticiones desde Angular
+                // Activa CORS para que Angular en localhost:4200 pueda conectarse
                 .cors(cors -> cors.configurationSource(configuracionCors()))
 
-                // Definir rutas publicas y protegidas
+                // Headers necesarios para que el popup de Google Sign-In funcione
+                .headers(headers -> headers
+                        .frameOptions(frame -> frame.sameOrigin())
+                        .addHeaderWriter((request, response) -> {
+                            response.setHeader("Cross-Origin-Opener-Policy", "same-origin-allow-popups");
+                            response.setHeader("Cross-Origin-Embedder-Policy", "unsafe-none");
+                        })
+                )
+
+                // Rutas publicas: no necesitan token JWT para acceder
                 .authorizeHttpRequests(auth -> auth
-                        // Solo el login es publico, no requiere token
                         .requestMatchers(
-                                "/api/auth/login",
-                                "/swagger-ui/**",
+                                "/api/auth/login",               // login con codigo + contrasena
+                                "/api/auth/google",              // login con Google
+                                "/api/auth/recuperar/solicitar", // enviar codigo al correo
+                                "/api/auth/recuperar/verificar", // verificar codigo recibido
+                                "/api/auth/recuperar/cambiar",   // guardar nueva contrasena
+                                "/swagger-ui/**",                // documentacion Swagger
                                 "/v3/api-docs/**"
                         ).permitAll()
-
                         // Cualquier otra ruta requiere token JWT valido
                         .anyRequest().authenticated()
                 )
 
-                // Politica stateless: el servidor no guarda sesiones.
-                // Cada peticion debe traer su propio token JWT.
+                // Sin sesiones: cada peticion trae su propio token JWT
                 .sessionManagement(session ->
                         session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
                 )
 
-                // Devolver 401 en vez de 403 cuando las credenciales son incorrectas
+                // Responde 401 con JSON cuando el token es invalido o no se envio
                 .exceptionHandling(ex -> ex
                         .authenticationEntryPoint(puntoEntradaAutenticacion())
                 )
 
-                // Registrar el proveedor que verifica usuario + BCrypt contra la BD
+                // Conecta Spring Security con la BD y BCrypt
                 .authenticationProvider(proveedorAutenticacion())
 
-                // El filtro JWT se ejecuta antes del filtro de usuario/contrasena
+                // El filtro JWT se ejecuta antes que el filtro de usuario/contrasena
                 .addFilterBefore(filtroJWT, UsernamePasswordAuthenticationFilter.class)
 
                 .build();
     }
 
-    // -- CONFIGURACION CORS ------------------------------------
-    // Permite que Angular en localhost:4200 haga peticiones al backend.
-    // Sin esto el navegador bloquea las peticiones por politica de origen cruzado.
+    // Define que origenes, metodos y headers estan permitidos para CORS
     @Bean
     public CorsConfigurationSource configuracionCors() {
         CorsConfiguration config = new CorsConfiguration();
 
-        // Origenes permitidos (Angular en desarrollo)
+        // Solo Angular en local puede hacer peticiones al backend
         config.setAllowedOrigins(List.of(
                 "http://localhost:4200",
+                "http://127.0.0.1:4200",
                 "http://localhost:4000"
         ));
 
-        // Metodos HTTP permitidos
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
-
-        // Todos los headers permitidos
         config.setAllowedHeaders(List.of("*"));
-
-        // Permitir envio del header Authorization con el token
+        // Permite enviar el header Authorization con el token JWT
         config.setAllowCredentials(true);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
@@ -112,9 +108,7 @@ public class ConfiguracionSeguridad {
         return source;
     }
 
-    // -- PROVEEDOR DE AUTENTICACION ----------------------------
-    // Conecta Spring Security con la BD y el encoder BCrypt.
-    // Se usa cuando el servicio de login llama a gestorAutenticacion.authenticate().
+    // Conecta Spring Security con la BD y BCrypt para verificar contrasenas
     @Bean
     public AuthenticationProvider proveedorAutenticacion() {
         DaoAuthenticationProvider proveedor = new DaoAuthenticationProvider();
@@ -123,8 +117,7 @@ public class ConfiguracionSeguridad {
         return proveedor;
     }
 
-    // -- AUTHENTICATION MANAGER --------------------------------
-    // Necesario para que ServicioAutenticacion pueda verificar credenciales.
+    // Permite que los servicios puedan verificar credenciales manualmente
     @Bean
     public AuthenticationManager gestorAutenticacion(
             AuthenticationConfiguration config
@@ -132,9 +125,7 @@ public class ConfiguracionSeguridad {
         return config.getAuthenticationManager();
     }
 
-    // -- PUNTO DE ENTRADA DE AUTENTICACION --------------------
-    // Devuelve 401 con mensaje JSON cuando las credenciales son incorrectas.
-    // Sin esto Spring Security devuelve 403, confundiendo al frontend.
+    // Responde 401 con JSON cuando el token es invalido o no se envio
     @Bean
     public AuthenticationEntryPoint puntoEntradaAutenticacion() {
         return (request, response, authException) -> {
@@ -144,8 +135,7 @@ public class ConfiguracionSeguridad {
         };
     }
 
-    // -- ENCODER DE CONTRASENA ---------------------------------
-    // Usa BCrypt para comparar la contrasena ingresada con el hash guardado en la BD.
+    // Usa BCrypt para encriptar y comparar contrasenas
     @Bean
     public PasswordEncoder encoderContrasena() {
         return new BCryptPasswordEncoder();
