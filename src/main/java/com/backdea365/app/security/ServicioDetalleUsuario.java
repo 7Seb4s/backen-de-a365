@@ -3,12 +3,14 @@ package com.backdea365.app.security;
 import com.backdea365.app.model.UsuarioLogin;
 import com.backdea365.app.repository.RepositorioUsuario;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 
@@ -40,5 +42,13 @@ public class ServicioDetalleUsuario implements UserDetailsService {
                 usuario.getClaveHash(),
                 List.of(new SimpleGrantedAuthority(rol))
         );
+    }
+
+    public Integer obtenerIdPorCodigo(String codigo) {
+        return repositorioUsuario.buscarPorCodigo(codigo)
+                .map(UsuarioLogin::getIdUsuario)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.UNAUTHORIZED, "Usuario no encontrado"
+                ));
     }
 }

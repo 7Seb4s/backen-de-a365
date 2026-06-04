@@ -3,7 +3,7 @@ package com.backdea365.app.dto;
 import jakarta.validation.constraints.*;
 import lombok.Data;
 
-// DTOs para creación y respuesta de usuario
+// DTOs para creación y respuesta de usuario (crear usuario - solo admin/gerente)
 public class UsuarioDTO {
 
     @Data
@@ -38,7 +38,11 @@ public class UsuarioDTO {
         private String correo;
 
         @NotBlank(message = "La contraseña es obligatoria")
-        @Size(min = 6, message = "La contraseña debe tener al menos 6 caracteres")
+        @Size(min = 8, message = "La contraseña debe tener al menos 8 caracteres")
+        @Pattern(
+                regexp = "^(?=.*[A-Z])(?=.*\\d)(?=.*[^A-Za-z0-9]).+$",
+                message = "La contraseña debe contener al menos 1 mayúscula, 1 dígito y 1 carácter especial"
+        )
         private String contrasena;
 
         @NotNull(message = "El rol es obligatorio")
