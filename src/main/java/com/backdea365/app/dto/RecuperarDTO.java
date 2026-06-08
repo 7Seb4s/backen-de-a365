@@ -2,6 +2,7 @@ package com.backdea365.app.dto;
 
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
 
@@ -29,9 +30,21 @@ public class RecuperarDTO {
     public static class CambiarRequest {
         @NotBlank @Email
         private String correo;
+
         @NotBlank @Size(min = 6, max = 6)
         private String codigo;
-        @NotBlank @Size(min = 6)
+
+        // Politica de contrasena:
+        // - al menos 8 caracteres
+        // - al menos 1 mayuscula
+        // - al menos 1 digito
+        // - al menos 1 caracter especial (cualquier no-alfanumerico)
+        @NotBlank(message = "La nueva contrasena es obligatoria")
+        @Size(min = 8, message = "La contrasena debe tener al menos 8 caracteres")
+        @Pattern(
+                regexp = "^(?=.*[A-Z])(?=.*\\d)(?=.*[^A-Za-z0-9]).+$",
+                message = "La contrasena debe contener al menos 1 mayuscula, 1 digito y 1 caracter especial"
+        )
         private String nuevaPassword;
     }
 }
