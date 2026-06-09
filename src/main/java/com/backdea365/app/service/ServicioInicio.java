@@ -1,6 +1,6 @@
 package com.backdea365.app.service;
 
-import com.backdena365.app.dto.InicioDTO;
+import com.backdea365.app.dto.InicioDTO;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;

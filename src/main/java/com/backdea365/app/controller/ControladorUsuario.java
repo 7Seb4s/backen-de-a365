@@ -6,15 +6,17 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
 // Endpoints para gestión de usuarios
-// Requieren autenticación JWT; el listado y desactivar son solo para admin/gerente
+// Solo accesible para ADMINISTRADOR y GERENTE
 @RestController
 @RequestMapping("/api/usuarios")
 @RequiredArgsConstructor
+@PreAuthorize("hasAnyRole('ADMINISTRADOR', 'GERENTE')")
 public class ControladorUsuario {
 
     private final ServicioUsuario servicioUsuario;

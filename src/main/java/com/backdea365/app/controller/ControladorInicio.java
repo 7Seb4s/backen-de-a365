@@ -1,6 +1,6 @@
 package com.backdea365.app.controller;
 
-import com.backdena365.app.dto.InicioDTO;
+import com.backdea365.app.dto.InicioDTO;
 import com.backdea365.app.security.ServicioDetalleUsuario;
 import com.backdea365.app.service.ServicioInicio;
 import lombok.RequiredArgsConstructor;

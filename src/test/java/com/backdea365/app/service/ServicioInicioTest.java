@@ -1,6 +1,6 @@
 package com.backdea365.app.service;
 
-import com.backdena365.app.dto.InicioDTO;
+import com.backdea365.app.dto.InicioDTO;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;

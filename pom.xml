@@ -119,9 +119,6 @@
             <version>4.5.0-M2</version>
         </dependency>
 
-        <!-- Logback ya viene incluido con Spring Boot (spring-boot-starter-logging) -->
-        <!-- No necesita dependencia adicional. Se usa con @Slf4j de Lombok. -->
-
         <!-- Swagger / OpenAPI -->
         <dependency>
             <groupId>org.springdoc</groupId>

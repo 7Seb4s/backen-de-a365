@@ -1,4 +1,4 @@
-package com.backdena365.app.dto;
+package com.backdea365.app.dto;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
