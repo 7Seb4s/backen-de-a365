@@ -199,4 +199,37 @@ public class AdminDTO {
     public static class OperacionResponse {
         private String mensaje;
     }
+
+    // ═══════════════════════════════════════════════════
+    //  GESTIÓN DE INCIDENCIAS (admin)
+    // ═══════════════════════════════════════════════════
+
+    // ── Ítem de la lista de incidencias por tab ──
+    // Coincide con IncidenciaAdminItem del frontend
+    @Data
+    @AllArgsConstructor
+    public static class IncidenciaAdminItem {
+        private Long    id;
+        private String  tipo;
+        private String  tema;
+        private String  estado;
+        private boolean resaltado;
+        private String  solicitante;
+        private String  fecha;
+    }
+
+    // ── Detalle completo de una incidencia para el modal ──
+    // Coincide con IncidenciaAdminDetalle del frontend
+    @Data
+    @AllArgsConstructor
+    public static class IncidenciaAdminDetalle {
+        private Long    id;
+        private String  tipo;
+        private String  estado;
+        private String  solicitante;
+        private String  asignadaA;
+        private String  fecha;
+        private String  contenido;
+        private Integer numeroTicket;
+    }
 }

@@ -1,6 +1,6 @@
 package com.backdea365.app.controller;
 
-import com.backdena365.app.dto.UsuarioDTO;
+import com.backdea365.app.dto.UsuarioDTO;
 import com.backdea365.app.service.ServicioUsuario;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;

@@ -7,6 +7,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
@@ -43,6 +44,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/admin")
 @RequiredArgsConstructor
+@PreAuthorize("hasAnyRole('ADMINISTRADOR', 'GERENTE')")
 public class ControladorAdmin {
 
     private final ServicioAdmin          servicioAdmin;
@@ -220,5 +222,27 @@ public class ControladorAdmin {
     @GetMapping("/dashboard/tickets-semana")
     public ResponseEntity<AdminDTO.ResumenTicketsSemana> resumenTicketsSemana() {
         return ResponseEntity.ok(servicioAdmin.obtenerResumenTicketsSemana());
+    }
+
+    // ═══════════════════════════════════════════════════
+    //  GESTIÓN DE INCIDENCIAS
+    // ═══════════════════════════════════════════════════
+
+    // GET /api/admin/incidencias?tab=pendientes|revision|atendidas
+    // Lista todas las incidencias filtradas por estado
+    @GetMapping("/incidencias")
+    public ResponseEntity<List<AdminDTO.IncidenciaAdminItem>> listarIncidencias(
+            @RequestParam(defaultValue = "pendientes") String tab
+    ) {
+        return ResponseEntity.ok(servicioAdmin.listarIncidencias(tab));
+    }
+
+    // GET /api/admin/incidencias/{id}
+    // Detalle completo de una incidencia para el modal
+    @GetMapping("/incidencias/{id}")
+    public ResponseEntity<AdminDTO.IncidenciaAdminDetalle> detalleIncidencia(
+            @PathVariable Long id
+    ) {
+        return ResponseEntity.ok(servicioAdmin.obtenerDetalleIncidencia(id));
     }
 }

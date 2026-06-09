@@ -1,7 +1,7 @@
 package com.backdea365.app.config;
 
 import com.backdea365.app.security.FiltroJWT;
-import jakarta.servlet .http.HttpServletResponse;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -10,6 +10,7 @@ import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.AuthenticationProvider;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -27,6 +28,7 @@ import java.util.List;
 
 @Configuration
 @EnableWebSecurity
+@EnableMethodSecurity
 @RequiredArgsConstructor
 public class ConfiguracionSeguridad {
 
@@ -65,6 +67,13 @@ public class ConfiguracionSeguridad {
                 )
                 .exceptionHandling(ex -> ex
                         .authenticationEntryPoint(puntoEntradaAutenticacion())
+                        .accessDeniedHandler((request, response, accessDeniedException) -> {
+                            response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+                            response.setContentType("application/json;charset=UTF-8");
+                            response.getWriter().write(
+                                    "{\"error\": \"No tienes permisos para esta acción\"}"
+                            );
+                        })
                 )
                 .authenticationProvider(proveedorAutenticacion())
                 .addFilterBefore(filtroJWT, UsernamePasswordAuthenticationFilter.class)

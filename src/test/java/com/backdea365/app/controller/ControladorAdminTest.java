@@ -1,6 +1,6 @@
 package com.backdea365.app.controller;
 
-import com.backdena365.app.dto.AdminDTO;
+import com.backdea365.app.dto.AdminDTO;
 import com.backdea365.app.security.ServicioDetalleUsuario;
 import com.backdea365.app.service.ServicioAdmin;
 import com.fasterxml.jackson.databind.ObjectMapper;

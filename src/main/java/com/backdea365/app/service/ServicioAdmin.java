@@ -389,6 +389,80 @@ public class ServicioAdmin {
     }
 
     // ═══════════════════════════════════════════════════
+    //  GESTIÓN DE INCIDENCIAS (admin)
+    // ═══════════════════════════════════════════════════
+
+    // ── Listar incidencias filtradas por tab (pendientes/revision/atendidas) ──
+    public List<AdminDTO.IncidenciaAdminItem> listarIncidencias(String tab) {
+        // Mapear tab del frontend al estado de la BD
+        String filtroEstado = switch (StringUtils.lowerCase(StringUtils.trimToEmpty(tab))) {
+            case "revision"  -> "EN_REVISION";
+            case "atendidas" -> "RESUELTA";
+            default          -> "REPORTADA";
+        };
+
+        return jdbc.query(
+                """
+                SELECT i.id_incidencia, i.tipo, i.asunto, i.estado, i.creado_en,
+                       COALESCE(d.nombre_completo, u.codigo) AS solicitante
+                FROM incidencias i
+                JOIN usuarios_login u ON u.id_usuario = i.id_usuario
+                LEFT JOIN usuario_detalle d ON d.id_usuario = u.id_usuario
+                WHERE i.estado = ?
+                ORDER BY i.creado_en DESC
+                """,
+                (rs, n) -> {
+                    String tipo   = rs.getString("tipo");
+                    String estado = rs.getString("estado");
+                    boolean resaltado = "REPORTADA".equals(estado)
+                            && "ACTUALIZACION".equalsIgnoreCase(tipo);
+                    return new AdminDTO.IncidenciaAdminItem(
+                            rs.getLong("id_incidencia"),
+                            StringUtils.capitalize(StringUtils.lowerCase(tipo)),
+                            "Topic: " + rs.getString("asunto"),
+                            StringUtils.capitalize(StringUtils.lowerCase(estado)),
+                            resaltado,
+                            rs.getString("solicitante"),
+                            timestampToString(rs.getTimestamp("creado_en"))
+                    );
+                },
+                filtroEstado
+        );
+    }
+
+    // ── Detalle de una incidencia para el modal del admin ──
+    public AdminDTO.IncidenciaAdminDetalle obtenerDetalleIncidencia(Long id) {
+        try {
+            return jdbc.queryForObject(
+                    """
+                    SELECT i.id_incidencia, i.tipo, i.estado, i.contenido,
+                           i.numero_ticket, i.creado_en,
+                           COALESCE(ds.nombre_completo, us.codigo) AS solicitante,
+                           COALESCE(da.nombre_completo, '') AS asignada_a
+                    FROM incidencias i
+                    JOIN usuarios_login us ON us.id_usuario = i.id_usuario
+                    LEFT JOIN usuario_detalle ds ON ds.id_usuario = us.id_usuario
+                    LEFT JOIN usuario_detalle da ON da.id_usuario = i.id_asignado
+                    WHERE i.id_incidencia = ?
+                    """,
+                    (rs, n) -> new AdminDTO.IncidenciaAdminDetalle(
+                            rs.getLong("id_incidencia"),
+                            StringUtils.capitalize(StringUtils.lowerCase(rs.getString("tipo"))),
+                            StringUtils.capitalize(StringUtils.lowerCase(rs.getString("estado"))),
+                            rs.getString("solicitante"),
+                            rs.getString("asignada_a"),
+                            timestampToString(rs.getTimestamp("creado_en")),
+                            rs.getString("contenido"),
+                            rs.getInt("numero_ticket")
+                    ),
+                    id
+            );
+        } catch (Exception e) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Incidencia no encontrada");
+        }
+    }
+
+    // ═══════════════════════════════════════════════════
     //  HELPERS PRIVADOS
     // ═══════════════════════════════════════════════════
 
