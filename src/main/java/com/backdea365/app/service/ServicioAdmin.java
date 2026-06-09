@@ -1,8 +1,12 @@
 package com.backdea365.app.service;
 
-import com.backdena365.app.dto.AdminDTO;
+import com.backdea365.app.dto.AdminDTO;
+import com.google.common.cache.CacheBuilder;
+import com.google.common.cache.CacheLoader;
+import com.google.common.cache.LoadingCache;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -11,21 +15,37 @@ import org.springframework.web.server.ResponseStatusException;
 import java.sql.Time;
 import java.sql.Timestamp;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 // Lógica de negocio para el panel de administración
-// Usa sp_admin_tickets_listar, sp_admin_ticket_detalle,
-// sp_admin_ticket_mensajes, sp_admin_ticket_enviar_mensaje,
-// sp_admin_ticket_adjuntos, sp_admin_ticket_crear, sp_admin_ticket_mover,
-// sp_admin_tablero_tickets, sp_admin_ticket_modal,
-// sp_admin_revision_usuario, sp_admin_gestion_tickets_mes,
-// sp_admin_incidencias_resumen_semana, sp_admin_tickets_resumen_semana,
-// sp_desactivar_usuario, sp_activar_usuario, sp_cambiar_rol
+// Librerías: Google Guava (CacheBuilder para cacheo del dashboard),
+//            Apache Commons (StringUtils para validaciones de texto)
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class ServicioAdmin {
 
     private final JdbcTemplate jdbc;
+
+    // ── Guava Cache: cachea el resumen semanal de incidencias por 5 minutos ──
+    // Evita consultas repetidas a la BD cuando varios admins abren el dashboard
+    private LoadingCache<String, AdminDTO.ResumenIncidenciasSemana> cacheIncidenciasSemana;
+    private LoadingCache<String, AdminDTO.ResumenTicketsSemana>     cacheTicketsSemana;
+
+    @jakarta.annotation.PostConstruct
+    private void inicializarCaches() {
+        this.cacheIncidenciasSemana = CacheBuilder.newBuilder()
+                .maximumSize(1)
+                .expireAfterWrite(5, TimeUnit.MINUTES)
+                .build(CacheLoader.from(key -> cargarIncidenciasSemana()));
+
+        this.cacheTicketsSemana = CacheBuilder.newBuilder()
+                .maximumSize(1)
+                .expireAfterWrite(5, TimeUnit.MINUTES)
+                .build(CacheLoader.from(key -> cargarTicketsSemana()));
+
+        log.info("Caches del dashboard inicializados (TTL: 5 min)");
+    }
 
     // ═══════════════════════════════════════════════════
     //  TABLERO KANBAN DE TICKETS
@@ -38,17 +58,14 @@ public class ServicioAdmin {
             String columna, String texto) {
         return jdbc.query(
                 "CALL sp_admin_tablero_tickets(?, ?)",
-                (rs, n) -> {
-                    Timestamp ts = rs.getTimestamp("actualizado_en");
-                    return new AdminDTO.TableroTicketItem(
-                            rs.getInt("numero_ticket"),
-                            rs.getString("asunto"),
-                            ts != null ? ts.toLocalDateTime().toString() : "",
-                            rs.getString("estado"),
-                            rs.getString("subestado"),
-                            rs.getString("preview_ultimo_mensaje")
-                    );
-                },
+                (rs, n) -> new AdminDTO.TableroTicketItem(
+                        rs.getInt("numero_ticket"),
+                        rs.getString("asunto"),
+                        timestampToString(rs.getTimestamp("actualizado_en")),
+                        rs.getString("estado"),
+                        rs.getString("subestado"),
+                        rs.getString("preview_ultimo_mensaje")
+                ),
                 columna,
                 texto == null ? "" : texto.trim()
         );
@@ -59,25 +76,22 @@ public class ServicioAdmin {
     public AdminDTO.TicketDetalle obtenerModalTicket(Integer numeroTicket) {
         List<AdminDTO.TicketDetalle> filas = jdbc.query(
                 "CALL sp_admin_ticket_modal(?)",
-                (rs, n) -> {
-                    Timestamp ts = rs.getTimestamp("creado_en");
-                    return new AdminDTO.TicketDetalle(
-                            null,
-                            rs.getInt("numero_ticket"),
-                            rs.getString("asunto"),
-                            rs.getString("descripcion"),
-                            rs.getString("tipo_ticket"),
-                            rs.getString("prioridad"),
-                            rs.getString("estado"),
-                            rs.getString("subestado"),
-                            null, null,
-                            ts != null ? ts.toLocalDateTime().toString() : "",
-                            null,
-                            rs.getString("solicitante_nombre"),
-                            rs.getString("asignado_codigo"),
-                            rs.getString("asignado_nombre")
-                    );
-                },
+                (rs, n) -> new AdminDTO.TicketDetalle(
+                        null,
+                        rs.getInt("numero_ticket"),
+                        rs.getString("asunto"),
+                        rs.getString("descripcion"),
+                        rs.getString("tipo_ticket"),
+                        rs.getString("prioridad"),
+                        rs.getString("estado"),
+                        rs.getString("subestado"),
+                        null, null,
+                        timestampToString(rs.getTimestamp("creado_en")),
+                        null,
+                        rs.getString("solicitante_nombre"),
+                        rs.getString("asignado_codigo"),
+                        rs.getString("asignado_nombre")
+                ),
                 numeroTicket
         );
         if (filas.isEmpty()) {
@@ -91,7 +105,8 @@ public class ServicioAdmin {
     public AdminDTO.OperacionResponse moverTicket(
             Integer numeroTicket, AdminDTO.MoverTicketRequest req) {
 
-        String columna = req.getColumna().toUpperCase().trim();
+        // Apache Commons: normalización segura del input (null-safe)
+        String columna = StringUtils.upperCase(StringUtils.trimToEmpty(req.getColumna()));
         if (!columna.equals("EN_REVISION")
                 && !columna.equals("EN_PROCESO_ATENCION")
                 && !columna.equals("COMPLETADO")) {
@@ -113,27 +128,23 @@ public class ServicioAdmin {
     public AdminDTO.TicketDetalle obtenerDetalleTicket(Integer numeroTicket) {
         List<AdminDTO.TicketDetalle> filas = jdbc.query(
                 "CALL sp_admin_ticket_detalle(?)",
-                (rs, n) -> {
-                    Timestamp tsCrea  = rs.getTimestamp("creado_en");
-                    Timestamp tsActu  = rs.getTimestamp("actualizado_en");
-                    return new AdminDTO.TicketDetalle(
-                            rs.getLong("id_ticket"),
-                            rs.getInt("numero_ticket"),
-                            rs.getString("asunto"),
-                            null,
-                            rs.getString("tipo_ticket"),
-                            rs.getString("prioridad"),
-                            rs.getString("estado"),
-                            rs.getString("subestado"),
-                            rs.getString("locacion_area"),
-                            tsCrea  != null ? tsCrea.toLocalDateTime().toString()  : "",
-                            tsActu  != null ? tsActu.toLocalDateTime().toString()  : "",
-                            rs.getString("codigo_solicitante"),
-                            rs.getString("solicitado_por"),
-                            rs.getString("codigo_asignado"),
-                            rs.getString("asignado_a")
-                    );
-                },
+                (rs, n) -> new AdminDTO.TicketDetalle(
+                        rs.getLong("id_ticket"),
+                        rs.getInt("numero_ticket"),
+                        rs.getString("asunto"),
+                        null,
+                        rs.getString("tipo_ticket"),
+                        rs.getString("prioridad"),
+                        rs.getString("estado"),
+                        rs.getString("subestado"),
+                        rs.getString("locacion_area"),
+                        timestampToString(rs.getTimestamp("creado_en")),
+                        timestampToString(rs.getTimestamp("actualizado_en")),
+                        rs.getString("codigo_solicitante"),
+                        rs.getString("solicitado_por"),
+                        rs.getString("codigo_asignado"),
+                        rs.getString("asignado_a")
+                ),
                 numeroTicket
         );
         if (filas.isEmpty()) {
@@ -147,16 +158,13 @@ public class ServicioAdmin {
     public List<AdminDTO.TicketMensaje> obtenerMensajes(Integer numeroTicket) {
         return jdbc.query(
                 "CALL sp_admin_ticket_mensajes(?)",
-                (rs, n) -> {
-                    Timestamp ts = rs.getTimestamp("creado_en");
-                    return new AdminDTO.TicketMensaje(
-                            rs.getLong("id_mensaje"),
-                            rs.getString("contenido"),
-                            ts != null ? ts.toLocalDateTime().toString() : "",
-                            rs.getString("remitente_codigo"),
-                            rs.getString("remitente_nombre")
-                    );
-                },
+                (rs, n) -> new AdminDTO.TicketMensaje(
+                        rs.getLong("id_mensaje"),
+                        rs.getString("contenido"),
+                        timestampToString(rs.getTimestamp("creado_en")),
+                        rs.getString("remitente_codigo"),
+                        rs.getString("remitente_nombre")
+                ),
                 numeroTicket
         );
     }
@@ -183,15 +191,12 @@ public class ServicioAdmin {
     public List<AdminDTO.TicketAdjunto> obtenerAdjuntos(Integer numeroTicket) {
         return jdbc.query(
                 "CALL sp_admin_ticket_adjuntos(?)",
-                (rs, n) -> {
-                    Timestamp ts = rs.getTimestamp("creado_en");
-                    return new AdminDTO.TicketAdjunto(
-                            rs.getString("nombre_archivo"),
-                            rs.getObject("tamano_kb", Integer.class),
-                            rs.getString("ruta"),
-                            ts != null ? ts.toLocalDateTime().toString() : ""
-                    );
-                },
+                (rs, n) -> new AdminDTO.TicketAdjunto(
+                        rs.getString("nombre_archivo"),
+                        rs.getObject("tamano_kb", Integer.class),
+                        rs.getString("ruta"),
+                        timestampToString(rs.getTimestamp("creado_en"))
+                ),
                 numeroTicket
         );
     }
@@ -203,20 +208,17 @@ public class ServicioAdmin {
         Object fechaParam = (fecha == null || fecha.isBlank()) ? null : java.sql.Date.valueOf(fecha);
         return jdbc.query(
                 "CALL sp_admin_tickets_listar(?, ?)",
-                (rs, n) -> {
-                    Timestamp ts = rs.getTimestamp("actualizado_en");
-                    return new AdminDTO.TicketListaItem(
-                            rs.getLong("id_ticket"),
-                            rs.getInt("numero_ticket"),
-                            rs.getString("asunto"),
-                            rs.getString("prioridad"),
-                            rs.getString("estado"),
-                            rs.getString("subestado"),
-                            ts != null ? ts.toLocalDateTime().toString() : "",
-                            rs.getString("solicitado_por"),
-                            rs.getString("preview_ultimo_mensaje")
-                    );
-                },
+                (rs, n) -> new AdminDTO.TicketListaItem(
+                        rs.getLong("id_ticket"),
+                        rs.getInt("numero_ticket"),
+                        rs.getString("asunto"),
+                        rs.getString("prioridad"),
+                        rs.getString("estado"),
+                        rs.getString("subestado"),
+                        timestampToString(rs.getTimestamp("actualizado_en")),
+                        rs.getString("solicitado_por"),
+                        rs.getString("preview_ultimo_mensaje")
+                ),
                 texto == null ? "" : texto.trim(),
                 fechaParam
         );
@@ -294,7 +296,8 @@ public class ServicioAdmin {
     public AdminDTO.OperacionResponse cambiarRol(
             Integer idUsuario, AdminDTO.CambiarRolRequest req) {
 
-        String rol = req.getRol().toUpperCase().trim();
+        // Apache Commons: normalización segura del input
+        String rol = StringUtils.upperCase(StringUtils.trimToEmpty(req.getRol()));
         if (!rol.equals("EMPLEADO") && !rol.equals("ADMINISTRADOR") && !rol.equals("GERENTE")) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                     "Rol inválido. Valores: EMPLEADO, ADMINISTRADOR, GERENTE");
@@ -332,8 +335,29 @@ public class ServicioAdmin {
     }
 
     // ── Resumen semanal de incidencias para el gráfico de torta ──
-    // Llama a sp_admin_incidencias_resumen_semana (semana actual)
+    // Guava Cache: devuelve datos cacheados si fueron consultados hace menos de 5 min
     public AdminDTO.ResumenIncidenciasSemana obtenerResumenIncidenciasSemana() {
+        try {
+            return cacheIncidenciasSemana.get("actual");
+        } catch (Exception e) {
+            log.warn("Error al obtener cache de incidencias, consultando BD directamente", e);
+            return cargarIncidenciasSemana();
+        }
+    }
+
+    // ── Resumen semanal de tickets para el gráfico de dona ──
+    // Guava Cache: evita consultas repetidas cuando varios admins abren el dashboard
+    public AdminDTO.ResumenTicketsSemana obtenerResumenTicketsSemana() {
+        try {
+            return cacheTicketsSemana.get("actual");
+        } catch (Exception e) {
+            log.warn("Error al obtener cache de tickets, consultando BD directamente", e);
+            return cargarTicketsSemana();
+        }
+    }
+
+    // ── Carga real desde BD (llamada por el CacheLoader de Guava) ──
+    private AdminDTO.ResumenIncidenciasSemana cargarIncidenciasSemana() {
         List<AdminDTO.ResumenIncidenciasSemana> filas = jdbc.query(
                 "CALL sp_admin_incidencias_resumen_semana()",
                 (rs, n) -> new AdminDTO.ResumenIncidenciasSemana(
@@ -348,9 +372,7 @@ public class ServicioAdmin {
                 : filas.get(0);
     }
 
-    // ── Resumen semanal de tickets para el gráfico de dona ──
-    // Llama a sp_admin_tickets_resumen_semana (semana actual)
-    public AdminDTO.ResumenTicketsSemana obtenerResumenTicketsSemana() {
+    private AdminDTO.ResumenTicketsSemana cargarTicketsSemana() {
         List<AdminDTO.ResumenTicketsSemana> filas = jdbc.query(
                 "CALL sp_admin_tickets_resumen_semana()",
                 (rs, n) -> new AdminDTO.ResumenTicketsSemana(
@@ -369,6 +391,11 @@ public class ServicioAdmin {
     // ═══════════════════════════════════════════════════
     //  HELPERS PRIVADOS
     // ═══════════════════════════════════════════════════
+
+    // Convierte un java.sql.Timestamp a String ISO o devuelve "" si es null
+    private String timestampToString(Timestamp ts) {
+        return ts != null ? ts.toLocalDateTime().toString() : "";
+    }
 
     // Convierte un java.sql.Time a String "H:MM:SS" o devuelve "0:00" si es null
     private String formatearTime(Time t) {

@@ -1,7 +1,9 @@
 package com.backdea365.app.service;
 
 import com.backdea365.app.dto.IncidenciaDTO;
+import com.google.common.base.Preconditions;
 import lombok.RequiredArgsConstructor;
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.dao.DataAccessException;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -45,6 +47,16 @@ public class ServicioIncidencia {
     // numero_ticket es FK NOT NULL, asi que debe existir en tickets
     public IncidenciaDTO.OperacionResponse crear(IncidenciaDTO.CrearRequest req, Integer idUsuario) {
 
+        // Guava Preconditions: validación expresiva de parámetros
+        Preconditions.checkArgument(
+                StringUtils.isNotBlank(req.getAsunto()), "El asunto es obligatorio");
+        Preconditions.checkArgument(
+                StringUtils.isNotBlank(req.getTipo()), "El tipo es obligatorio");
+        Preconditions.checkArgument(
+                StringUtils.isNotBlank(req.getContenido()), "El contenido es obligatorio");
+        Preconditions.checkNotNull(
+                req.getNumeroTicket(), "El número de ticket es obligatorio");
+
         // Verificar que el ticket exista antes de crear la incidencia
         Integer existeTicket = jdbc.queryForObject(
                 "SELECT COUNT(*) FROM tickets WHERE numero_ticket = ?",
@@ -59,10 +71,10 @@ public class ServicioIncidencia {
             jdbc.update(
                     "CALL sp_incidencias_crear(?, ?, ?, ?, ?)",
                     idUsuario,
-                    req.getAsunto().trim(),
-                    req.getTipo().trim(),
+                    StringUtils.trimToEmpty(req.getAsunto()),
+                    StringUtils.trimToEmpty(req.getTipo()),
                     req.getNumeroTicket(),
-                    req.getContenido().trim()
+                    StringUtils.trimToEmpty(req.getContenido())
             );
         } catch (DataAccessException ex) {
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR,
@@ -95,9 +107,8 @@ public class ServicioIncidencia {
         }
     }
 
-    // Helper: ACTUALIZACION -> "Actualizacion"
+    // Apache Commons: StringUtils.capitalize reemplaza el helper manual
     private String capitalizar(String s) {
-        if (s == null || s.isEmpty()) return "";
-        return Character.toUpperCase(s.charAt(0)) + s.substring(1).toLowerCase();
+        return StringUtils.capitalize(StringUtils.lowerCase(StringUtils.defaultString(s)));
     }
 }

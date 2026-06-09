@@ -1,4 +1,4 @@
-package com.backdena365.app.dto;
+package com.backdea365.app.dto;
 
 import jakarta.validation.constraints.*;
 import lombok.AllArgsConstructor;

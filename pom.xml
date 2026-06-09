@@ -8,7 +8,6 @@
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
         <version>3.2.4</version>
-        <relativePath/>
     </parent>
 
     <groupId>com.backdea365</groupId>
@@ -92,12 +91,36 @@
             <version>2.4.0</version>
         </dependency>
 
-        <!-- Google Guava - Cache en memoria y utilidades -->
+        <!-- Google Guava - Cache en memoria, validaciones y colecciones inmutables -->
         <dependency>
             <groupId>com.google.guava</groupId>
             <artifactId>guava</artifactId>
             <version>33.2.1-jre</version>
         </dependency>
+
+        <!-- Apache POI - Exportación de reportes a Excel (.xlsx) -->
+        <dependency>
+            <groupId>org.apache.poi</groupId>
+            <artifactId>poi-ooxml</artifactId>
+            <version>5.3.0</version>
+        </dependency>
+
+        <!-- Apache Commons Lang - Utilidades de strings y objetos -->
+        <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-lang3</artifactId>
+            <version>3.17.0</version>
+        </dependency>
+
+        <!-- Apache Commons Collections - Utilidades de colecciones -->
+        <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-collections4</artifactId>
+            <version>4.5.0-M2</version>
+        </dependency>
+
+        <!-- Logback ya viene incluido con Spring Boot (spring-boot-starter-logging) -->
+        <!-- No necesita dependencia adicional. Se usa con @Slf4j de Lombok. -->
 
         <!-- Swagger / OpenAPI -->
         <dependency>
