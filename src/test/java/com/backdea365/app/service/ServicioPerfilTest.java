@@ -42,7 +42,7 @@ public class ServicioPerfilTest {
     public void obtenerPerfil_DebeRetornarPerfil_CuandoUsuarioExisteYEstaActivo() {
         Integer idUsuario = 15;
         PerfilDTO.PerfilResponse mockPerfil = new PerfilDTO.PerfilResponse(
-                "EMP15", "Erik Smit Ventura", "erik@mail.com", "Av. Central 123", "987654321", "74859612"
+                "EMP15", "Erik Smit Ventura", "erik@mail.com", "Av. Central 123", "987654321", "74859612", null
         );
 
         Mockito.when(jdbc.query(anyString(), any(RowMapper.class), eq(idUsuario)))
@@ -81,7 +81,6 @@ public class ServicioPerfilTest {
         request.setCorreo("duplicado@mail.com");
         request.setDni("74859612");
 
-        // Simulamos que el conteo de correos para otros IDs devuelve 1 (Ya existe)
         Mockito.when(jdbc.queryForObject(eq("SELECT COUNT(*) FROM usuarios_login WHERE correo = ? AND id_usuario <> ?"), eq(Integer.class), eq("duplicado@mail.com"), eq(idUsuario)))
                 .thenReturn(1);
 
@@ -101,7 +100,6 @@ public class ServicioPerfilTest {
         request.setCorreo("unico@mail.com");
         request.setDni("88888888");
 
-        // Correo libre (0), pero DNI ocupado (1)
         Mockito.when(jdbc.queryForObject(eq("SELECT COUNT(*) FROM usuarios_login WHERE correo = ? AND id_usuario <> ?"), eq(Integer.class), eq("unico@mail.com"), eq(idUsuario)))
                 .thenReturn(0);
         Mockito.when(jdbc.queryForObject(eq("SELECT COUNT(*) FROM usuario_detalle WHERE dni = ? AND id_usuario <> ?"), eq(Integer.class), eq("88888888"), eq(idUsuario)))
@@ -124,7 +122,6 @@ public class ServicioPerfilTest {
         request.setDireccion("  Calle Las Acacias 456  ");
         request.setDni("74859612");
 
-        // Ambos checks de unicidad devuelven 0
         Mockito.when(jdbc.queryForObject(anyString(), eq(Integer.class), eq("erik.ventura@mail.com"), eq(idUsuario))).thenReturn(0);
         Mockito.when(jdbc.queryForObject(anyString(), eq(Integer.class), eq("74859612"), eq(idUsuario))).thenReturn(0);
 
@@ -132,16 +129,14 @@ public class ServicioPerfilTest {
 
         assertThat(respuesta.getMensaje()).contains("Tu perfil ha sido actualizado correctamente");
 
-        // Verificamos el formateo .toLowerCase().trim() del correo en usuarios_login
         Mockito.verify(jdbc, Mockito.times(1)).update(
                 eq("UPDATE usuarios_login SET correo = ?, actualizado_en = NOW() WHERE id_usuario = ? AND activo = 1"),
                 eq("erik.ventura@mail.com"),
                 eq(idUsuario)
         );
 
-        // Verificamos el UPSERT en usuario_detalle con los campos limpios (.trim())
         Mockito.verify(jdbc, Mockito.times(1)).update(
-                anyString(), // Query block del INSERT ... ON DUPLICATE KEY UPDATE
+                anyString(),
                 eq(idUsuario),
                 eq("Erik Smit Ventura Hernandez"),
                 eq("987654321"),
@@ -160,7 +155,7 @@ public class ServicioPerfilTest {
         PerfilDTO.CambiarContrasenaRequest request = new PerfilDTO.CambiarContrasenaRequest();
         request.setContrasenaActual("Actual123!");
         request.setNuevaContrasena("Nueva123!");
-        request.setConfirmarContrasena("Diferente123!"); // No coincide
+        request.setConfirmarContrasena("Diferente123!");
 
         assertThatThrownBy(() -> servicioPerfil.cambiarContrasena(idUsuario, request))
                 .isInstanceOf(ResponseStatusException.class)
@@ -199,7 +194,6 @@ public class ServicioPerfilTest {
         Mockito.when(jdbc.queryForObject(anyString(), eq(String.class), eq(idUsuario)))
                 .thenReturn(hashBd);
 
-        // El encoder dictamina que la contraseña ingresada no concuerda con el hash actual
         Mockito.when(encoder.matches("ClaveIncorrecta123!", hashBd)).thenReturn(false);
 
         assertThatThrownBy(() -> servicioPerfil.cambiarContrasena(idUsuario, request))
@@ -229,7 +223,6 @@ public class ServicioPerfilTest {
 
         assertThat(respuesta.getMensaje()).contains("Tu contrasena ha sido actualizada correctamente");
 
-        // Validamos la llamada al SP encargado de persistir el nuevo hash de seguridad
         Mockito.verify(jdbc, Mockito.times(1)).update(
                 eq("CALL sp_cambiar_clave(?, ?)"),
                 eq(idUsuario),

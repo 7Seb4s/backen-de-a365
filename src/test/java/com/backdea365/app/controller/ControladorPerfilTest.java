@@ -84,7 +84,8 @@ public class ControladorPerfilTest {
                 "erik.ventura@impulsaa365.com",
                 "Av. Universitaria 1230",
                 "987654321",
-                "74859612"
+                "74859612",
+                null  // fotoUrl: sin foto en este test
         );
         when(servicioPerfil.obtenerPerfil(idUsuarioSimulado)).thenReturn(perfilMock);
 

@@ -21,6 +21,7 @@ public class PerfilDTO {
         private String direccion;
         private String telefono;
         private String dni;
+        private String fotoUrl; // URL publica de la foto de perfil (puede ser null)
     }
 
     // ── PUT /api/perfil ──
@@ -77,5 +78,13 @@ public class PerfilDTO {
     @AllArgsConstructor
     public static class OperacionResponse {
         private String mensaje;
+    }
+
+    // ── PUT /api/perfil/foto ──
+    @Data
+    @AllArgsConstructor
+    public static class FotoResponse {
+        private String mensaje;
+        private String fotoUrl; // URL publica para acceder a la foto
     }
 }
