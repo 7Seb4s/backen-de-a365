@@ -47,7 +47,7 @@ public class UsuarioDTO {
         @NotBlank(message = "La contraseña es obligatoria")
         @Size(min = 8, message = "La contraseña debe tener al menos 8 caracteres")
         @Pattern(
-                regexp = "^(?=.*[A-Z])(?=.*\\d)(?=.*[^A-Za-z0-9]).+$",
+                regexp = "^(?=.*\\p{Lu})(?=.*\\d)(?=.*[^\\p{L}0-9]).+$",
                 message = "La contraseña debe contener al menos 1 mayúscula, 1 dígito y 1 carácter especial"
         )
         private String contrasena;

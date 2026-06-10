@@ -68,15 +68,22 @@ public class ServicioExportacion {
                 int logoIdx = workbook.addPicture(logoBytes, Workbook.PICTURE_TYPE_JPEG);
                 logoStream.close();
 
+                // Crear filas con altura para que el logo tenga espacio
+                for (int i = 0; i < 3; i++) {
+                    Row r = sheet.createRow(i);
+                    r.setHeightInPoints(25);
+                }
+
                 CreationHelper helper = workbook.getCreationHelper();
                 Drawing<?> drawing = sheet.createDrawingPatriarch();
                 ClientAnchor anchor = helper.createClientAnchor();
+                anchor.setAnchorType(ClientAnchor.AnchorType.MOVE_AND_RESIZE);
                 anchor.setCol1(0);
                 anchor.setRow1(0);
-                anchor.setCol2(2);
+                anchor.setCol2(1);
                 anchor.setRow2(3);
                 drawing.createPicture(anchor, logoIdx);
-                filaActual = 3; // saltar las filas del logo
+                filaActual = 4; // saltar las filas del logo
             } catch (Exception e) {
                 log.warn("No se pudo cargar el logo para Excel: {}", e.getMessage());
             }

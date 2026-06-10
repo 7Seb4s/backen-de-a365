@@ -51,7 +51,8 @@ public class ControladorAutenticacionTest {
                 12,
                 "SUP-4512",
                 "Erik Smit Ventura Hernandez",
-                "ADMINISTRADOR"
+                "ADMINISTRADOR",
+                null // fotoUrl
         );
 
         when(servicioAuth.login(any(AuthDTO.LoginRequest.class))).thenReturn(resp);

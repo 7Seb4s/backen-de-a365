@@ -154,7 +154,8 @@ public class ServicioGoogleAuthTest {
         Mockito.when(repositorioUsuario.buscarPorCorreo(correoValido))
                 .thenReturn(Optional.of(usuarioMock));
         Mockito.when(jdbc.queryForObject(anyString(), eq(String.class), eq(77)))
-                .thenReturn("Erik Smit Ventura");
+                .thenReturn("Erik Smit Ventura")   // nombre
+                .thenReturn(null);                  // fotoUrl
         Mockito.when(utilJWT.generarToken("EMP007", "GERENTE"))
                 .thenReturn("jwt-propio-firmado-hs512");
 
@@ -176,8 +177,8 @@ public class ServicioGoogleAuthTest {
         assertThat(respuesta.getNombre()).isEqualTo("Erik Smit Ventura");
         assertThat(respuesta.getRol()).isEqualTo("GERENTE");
 
-        // Confirmamos que se consultó la tabla secundaria de detalles del usuario
-        Mockito.verify(jdbc, Mockito.times(1))
+        // 2 llamadas: 1 para nombre + 1 para foto_url
+        Mockito.verify(jdbc, Mockito.times(2))
                 .queryForObject(anyString(), eq(String.class), eq(77));
     }
 }

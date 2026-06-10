@@ -120,17 +120,20 @@ public class ServicioAutenticacionTest {
         Mockito.when(utilJWT.generarToken("EMP001", "ADMINISTRADOR"))
                 .thenReturn("jwt-token-falso-xyz");
 
+        // Mock: 1ra llamada devuelve nombre, 2da llamada devuelve fotoUrl
         Mockito.when(jdbc.queryForObject(anyString(), eq(String.class), eq(10)))
-                .thenReturn("Erik Smit Ventura");
+                .thenReturn("Erik Smit Ventura")   // nombre
+                .thenReturn(null);                  // fotoUrl
 
         AuthDTO.LoginResponse respuesta = servicioAutenticacion.login(request);
 
         assertThat(respuesta).isNotNull();
         assertThat(respuesta.getToken()).isEqualTo("jwt-token-falso-xyz");
-        assertThat(respuesta.getNombre()).isEqualTo("Erik Smit Ventura"); // Corregido: .getNombreCompleto() -> .getNombre()
+        assertThat(respuesta.getNombre()).isEqualTo("Erik Smit Ventura");
         assertThat(respuesta.getRol()).isEqualTo("ADMINISTRADOR");
 
-        Mockito.verify(jdbc, Mockito.times(1))
+        // 2 llamadas: 1 para nombre + 1 para foto_url
+        Mockito.verify(jdbc, Mockito.times(2))
                 .queryForObject(anyString(), eq(String.class), eq(10));
     }
 
@@ -153,19 +156,21 @@ public class ServicioAutenticacionTest {
         Mockito.when(utilJWT.generarToken("EMP001", "ADMINISTRADOR"))
                 .thenReturn("jwt-token-falso-xyz");
 
-        // Primer Login (Puebla el caché de Guava)
+        // Primer Login (Puebla el caché de Guava para nombre)
         Mockito.when(jdbc.queryForObject(anyString(), eq(String.class), eq(10)))
-                .thenReturn("Erik Smit Ventura");
+                .thenReturn("Erik Smit Ventura")   // nombre (1er login)
+                .thenReturn(null)                   // fotoUrl (1er login)
+                .thenReturn(null);                  // fotoUrl (2do login, nombre viene del caché)
         servicioAutenticacion.login(request);
 
         // Act: Segundo Login consecutivo
         AuthDTO.LoginResponse segundaRespuesta = servicioAutenticacion.login(request);
 
         // Assert
-        assertThat(segundaRespuesta.getNombre()).isEqualTo("Erik Smit Ventura"); // Corregido: .getNombreCompleto() -> .getNombre()
+        assertThat(segundaRespuesta.getNombre()).isEqualTo("Erik Smit Ventura");
 
-        // Verifica que la consulta SQL a usuario_detalle solo se ejecutó en el primer login
-        Mockito.verify(jdbc, Mockito.times(1))
+        // 3 llamadas total: 1 nombre (cacheado) + 2 foto_url (1 por login)
+        Mockito.verify(jdbc, Mockito.times(3))
                 .queryForObject(anyString(), eq(String.class), eq(10));
     }
 

@@ -51,7 +51,8 @@ public class ControladorGoogleAuthTest {
                 12,
                 "SUP-4512",
                 "Erik Smit Ventura Hernandez",
-                "ADMINISTRADOR"
+                "ADMINISTRADOR",
+                null // fotoUrl
         );
 
         // Mockeo del servicio pasando la cadena de credenciales exacta extraída de la petición
