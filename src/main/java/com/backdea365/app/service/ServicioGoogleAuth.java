@@ -71,13 +71,23 @@ public class ServicioGoogleAuth {
         String token = utilJWT.generarToken(usuario.getCodigo(), usuario.getRol().name());
 
         // Devolver la misma respuesta que el login normal
+        // Buscar foto de perfil
+        String fotoUrl = null;
+        try {
+            fotoUrl = jdbc.queryForObject(
+                    "SELECT foto_url FROM usuario_detalle WHERE id_usuario = ?",
+                    String.class, usuario.getIdUsuario()
+            );
+        } catch (Exception ignored) {}
+
         return new AuthDTO.LoginResponse(
                 token,
                 "Bearer",
                 usuario.getIdUsuario(),
                 usuario.getCodigo(),
                 nombre != null ? nombre : usuario.getCodigo(),
-                usuario.getRol().name()
+                usuario.getRol().name(),
+                fotoUrl
         );
     }
 

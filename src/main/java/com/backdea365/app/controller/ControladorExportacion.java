@@ -48,4 +48,30 @@ public class ControladorExportacion {
                         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
                 .body(excel);
     }
+
+    // ── PDF ──
+
+    // GET /api/exportar/usuarios-activos-pdf
+    // Descarga un archivo PDF con la lista de usuarios activos
+    @GetMapping("/usuarios-activos-pdf")
+    public ResponseEntity<byte[]> exportarUsuariosActivosPdf() throws Exception {
+        byte[] pdf = servicioExportacion.exportarUsuariosActivosPdf();
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        "attachment; filename=usuarios_activos.pdf")
+                .contentType(MediaType.APPLICATION_PDF)
+                .body(pdf);
+    }
+
+    // GET /api/exportar/usuarios-eliminados-pdf
+    // Descarga un archivo PDF con el historial de usuarios eliminados
+    @GetMapping("/usuarios-eliminados-pdf")
+    public ResponseEntity<byte[]> exportarUsuariosEliminadosPdf() throws Exception {
+        byte[] pdf = servicioExportacion.exportarUsuariosEliminadosPdf();
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        "attachment; filename=usuarios_eliminados.pdf")
+                .contentType(MediaType.APPLICATION_PDF)
+                .body(pdf);
+    }
 }

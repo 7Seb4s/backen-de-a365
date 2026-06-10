@@ -27,5 +27,6 @@ public class AuthDTO {
         private String codigo;   // codigo del trabajador (ej: EMP001)
         private String nombre;   // nombre completo desde usuario_detalle
         private String rol;      // EMPLEADO, ADMINISTRADOR o GERENTE
+        private String fotoUrl;  // URL de la foto de perfil (puede ser null)
     }
 }

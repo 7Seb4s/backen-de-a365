@@ -61,6 +61,15 @@ public class ServicioAutenticacion {
         // Si ya esta en cache no hace la query a la BD
         String nombre = buscarNombreConCache(usuario.getIdUsuario());
 
+        // Buscar la foto de perfil del usuario
+        String fotoUrl = null;
+        try {
+            fotoUrl = jdbc.queryForObject(
+                    "SELECT foto_url FROM usuario_detalle WHERE id_usuario = ?",
+                    String.class, usuario.getIdUsuario()
+            );
+        } catch (Exception ignored) {}
+
         // Generar el token JWT firmado
         String token = utilJWT.generarToken(usuario.getCodigo(), usuario.getRol().name());
 
@@ -71,7 +80,8 @@ public class ServicioAutenticacion {
                 usuario.getIdUsuario(),
                 usuario.getCodigo(),
                 nombre != null ? nombre : usuario.getCodigo(),
-                usuario.getRol().name()
+                usuario.getRol().name(),
+                fotoUrl
         );
     }
 

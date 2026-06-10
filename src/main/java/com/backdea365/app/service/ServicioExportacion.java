@@ -7,17 +7,20 @@ import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.ss.util.CellRangeAddress;
+import org.apache.poi.util.IOUtils;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Service;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 
-// Servicio de exportación de datos a Excel (.xlsx)
-// Usa Apache POI para generar los archivos y Apache Commons para validaciones
+// Servicio de exportación de datos a Excel (.xlsx) y PDF
+// Usa Apache POI para Excel, iTextPDF para PDF, y Apache Commons para validaciones
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -58,12 +61,32 @@ public class ServicioExportacion {
 
             int filaActual = 0;
 
-            // ── Fila 0: Título del reporte ──
+            // ── Logo de la empresa (Apache POI: insertar imagen) ──
+            try {
+                InputStream logoStream = new ClassPathResource("logo-a365.jpg").getInputStream();
+                byte[] logoBytes = IOUtils.toByteArray(logoStream);
+                int logoIdx = workbook.addPicture(logoBytes, Workbook.PICTURE_TYPE_JPEG);
+                logoStream.close();
+
+                CreationHelper helper = workbook.getCreationHelper();
+                Drawing<?> drawing = sheet.createDrawingPatriarch();
+                ClientAnchor anchor = helper.createClientAnchor();
+                anchor.setCol1(0);
+                anchor.setRow1(0);
+                anchor.setCol2(2);
+                anchor.setRow2(3);
+                drawing.createPicture(anchor, logoIdx);
+                filaActual = 3; // saltar las filas del logo
+            } catch (Exception e) {
+                log.warn("No se pudo cargar el logo para Excel: {}", e.getMessage());
+            }
+
+            // ── Título del reporte ──
             Row filaTitulo = sheet.createRow(filaActual++);
             Cell celdaTitulo = filaTitulo.createCell(0);
             celdaTitulo.setCellValue("Reporte: " + titulo + " — Impulsa A365");
             celdaTitulo.setCellStyle(estiloTitulo);
-            sheet.addMergedRegion(new CellRangeAddress(0, 0, 0, 5));
+            sheet.addMergedRegion(new CellRangeAddress(filaActual - 1, filaActual - 1, 0, 5));
 
             // ── Fila 1: Fecha de generación ──
             Row filaFecha = sheet.createRow(filaActual++);
@@ -157,5 +180,116 @@ public class ServicioExportacion {
         Cell celda = fila.createCell(columna);
         celda.setCellValue(valor);
         celda.setCellStyle(estilo);
+    }
+
+    // ═══════════════════════════════════════════════════
+    //  EXPORTACIÓN A PDF (iTextPDF)
+    // ═══════════════════════════════════════════════════
+
+    // ── Exportar usuarios activos a PDF ──
+    public byte[] exportarUsuariosActivosPdf() throws Exception {
+        return generarPdfUsuarios(servicioUsuario.listarActivos(), "Usuarios Activos");
+    }
+
+    // ── Exportar usuarios eliminados a PDF ──
+    public byte[] exportarUsuariosEliminadosPdf() throws Exception {
+        return generarPdfUsuarios(servicioUsuario.listarEliminados(), "Usuarios Eliminados");
+    }
+
+    // ── Generador principal del PDF ──
+    // iTextPDF: crea documento, tabla con encabezados estilizados y datos
+    private byte[] generarPdfUsuarios(
+            List<UsuarioDTO.PanelItem> usuarios, String titulo) throws Exception {
+
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        com.itextpdf.text.Document documento = new com.itextpdf.text.Document(
+                com.itextpdf.text.PageSize.A4.rotate()  // Horizontal para más columnas
+        );
+        com.itextpdf.text.pdf.PdfWriter.getInstance(documento, out);
+        documento.open();
+
+        // ── Logo (iTextPDF: insertar imagen) ──
+        try {
+            InputStream logoStream = new ClassPathResource("logo-a365.jpg").getInputStream();
+            byte[] logoBytes = logoStream.readAllBytes();
+            logoStream.close();
+            com.itextpdf.text.Image logo = com.itextpdf.text.Image.getInstance(logoBytes);
+            logo.scaleToFit(120, 60);
+            logo.setSpacingAfter(10);
+            documento.add(logo);
+        } catch (Exception e) {
+            log.warn("No se pudo cargar el logo para PDF: {}", e.getMessage());
+        }
+
+        // ── Fuentes ──
+        com.itextpdf.text.Font fuenteTitulo = new com.itextpdf.text.Font(
+                com.itextpdf.text.Font.FontFamily.HELVETICA, 16,
+                com.itextpdf.text.Font.BOLD, new com.itextpdf.text.BaseColor(27, 37, 89)
+        );
+        com.itextpdf.text.Font fuenteHeader = new com.itextpdf.text.Font(
+                com.itextpdf.text.Font.FontFamily.HELVETICA, 10,
+                com.itextpdf.text.Font.BOLD, com.itextpdf.text.BaseColor.WHITE
+        );
+        com.itextpdf.text.Font fuenteDato = new com.itextpdf.text.Font(
+                com.itextpdf.text.Font.FontFamily.HELVETICA, 9,
+                com.itextpdf.text.Font.NORMAL, com.itextpdf.text.BaseColor.DARK_GRAY
+        );
+        com.itextpdf.text.Font fuenteFecha = new com.itextpdf.text.Font(
+                com.itextpdf.text.Font.FontFamily.HELVETICA, 8,
+                com.itextpdf.text.Font.NORMAL, com.itextpdf.text.BaseColor.GRAY
+        );
+
+        // ── Título ──
+        com.itextpdf.text.Paragraph paraTitulo = new com.itextpdf.text.Paragraph(
+                "Reporte: " + titulo + " — Impulsa A365", fuenteTitulo
+        );
+        paraTitulo.setSpacingAfter(4);
+        documento.add(paraTitulo);
+
+        // ── Fecha de generación ──
+        String fecha = java.time.LocalDateTime.now()
+                .format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss"));
+        com.itextpdf.text.Paragraph paraFecha = new com.itextpdf.text.Paragraph(
+                "Generado: " + fecha, fuenteFecha
+        );
+        paraFecha.setSpacingAfter(14);
+        documento.add(paraFecha);
+
+        // ── Tabla ──
+        String[] columnas = {"#", "Codigo", "Nombre Completo", "DNI", "Correo", "Cargo"};
+        com.itextpdf.text.pdf.PdfPTable tabla = new com.itextpdf.text.pdf.PdfPTable(columnas.length);
+        tabla.setWidthPercentage(100);
+        tabla.setWidths(new float[]{5, 10, 25, 12, 28, 15});
+
+        // Headers con fondo azul oscuro
+        com.itextpdf.text.BaseColor colorHeader = new com.itextpdf.text.BaseColor(27, 37, 89);
+        for (String col : columnas) {
+            com.itextpdf.text.pdf.PdfPCell celda = new com.itextpdf.text.pdf.PdfPCell(
+                    new com.itextpdf.text.Phrase(col, fuenteHeader)
+            );
+            celda.setBackgroundColor(colorHeader);
+            celda.setPadding(6);
+            celda.setHorizontalAlignment(com.itextpdf.text.Element.ALIGN_CENTER);
+            tabla.addCell(celda);
+        }
+
+        // Filas de datos
+        if (CollectionUtils.isNotEmpty(usuarios)) {
+            int numero = 1;
+            for (UsuarioDTO.PanelItem u : usuarios) {
+                tabla.addCell(new com.itextpdf.text.Phrase(String.valueOf(numero++), fuenteDato));
+                tabla.addCell(new com.itextpdf.text.Phrase(StringUtils.defaultIfBlank(u.getCodigo(), "—"), fuenteDato));
+                tabla.addCell(new com.itextpdf.text.Phrase(StringUtils.defaultIfBlank(u.getNombre(), "—"), fuenteDato));
+                tabla.addCell(new com.itextpdf.text.Phrase(StringUtils.defaultIfBlank(u.getDni(), "—"), fuenteDato));
+                tabla.addCell(new com.itextpdf.text.Phrase(StringUtils.defaultIfBlank(u.getCorreo(), "—"), fuenteDato));
+                tabla.addCell(new com.itextpdf.text.Phrase(StringUtils.defaultIfBlank(u.getCargo(), "—"), fuenteDato));
+            }
+        }
+
+        documento.add(tabla);
+        documento.close();
+
+        log.info("PDF de {} generado: {} registros", titulo, usuarios.size());
+        return out.toByteArray();
     }
 }
