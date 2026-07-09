@@ -1,6 +1,8 @@
 package com.backdea365.app.controller;
 
 import com.backdea365.app.dto.AdminDTO;
+import com.backdea365.app.dto.ReportesDTO;
+import com.backdea365.app.dto.AccionesAdminDTO;
 import com.backdea365.app.security.ServicioDetalleUsuario;
 import com.backdea365.app.service.ServicioAdmin;
 import jakarta.validation.Valid;
@@ -244,5 +246,74 @@ public class ControladorAdmin {
             @PathVariable Long id
     ) {
         return ResponseEntity.ok(servicioAdmin.obtenerDetalleIncidencia(id));
+    }
+
+    // ═══════════════════════════════════════════════════
+    //  REPORTES
+    // ═══════════════════════════════════════════════════
+
+    // GET /api/admin/reportes
+    // KPIs (totales de toda la BD) + historial de tickets cerrados
+    @GetMapping("/reportes")
+    public ResponseEntity<ReportesDTO.ReporteResponse> reportes() {
+        return ResponseEntity.ok(servicioAdmin.obtenerReportes());
+    }
+
+    // ═══════════════════════════════════════════════════
+    //  ACCIONES: EDITAR / ELIMINAR / ADJUNTOS
+    // ═══════════════════════════════════════════════════
+
+    // PUT /api/admin/tickets/{numero}  → editar ticket
+    @PutMapping("/tickets/{numero}")
+    public ResponseEntity<AdminDTO.OperacionResponse> editarTicket(
+            @PathVariable int numero,
+            @RequestBody AccionesAdminDTO.EditarTicketRequest req
+    ) {
+        return ResponseEntity.ok(servicioAdmin.editarTicket(numero, req));
+    }
+
+    // DELETE /api/admin/tickets/{numero}  → borrar ticket
+    @DeleteMapping("/tickets/{numero}")
+    public ResponseEntity<AdminDTO.OperacionResponse> eliminarTicket(@PathVariable int numero) {
+        return ResponseEntity.ok(servicioAdmin.eliminarTicket(numero));
+    }
+
+    // POST /api/admin/tickets/{numero}/adjuntos  → subir archivo (multipart)
+    @PostMapping("/tickets/{numero}/adjuntos")
+    public ResponseEntity<AccionesAdminDTO.AdjuntoResponse> subirAdjunto(
+            @PathVariable int numero,
+            @RequestParam("archivo") org.springframework.web.multipart.MultipartFile archivo
+    ) {
+        return ResponseEntity.ok(servicioAdmin.subirAdjunto(numero, archivo));
+    }
+
+    // DELETE /api/admin/tickets/{numero}/adjuntos/{idAdjunto}  → eliminar un adjunto
+    @DeleteMapping("/tickets/{numero}/adjuntos/{idAdjunto}")
+    public ResponseEntity<AdminDTO.OperacionResponse> eliminarAdjunto(
+            @PathVariable int numero,
+            @PathVariable long idAdjunto
+    ) {
+        return ResponseEntity.ok(servicioAdmin.eliminarAdjunto(numero, idAdjunto));
+    }
+
+    // DELETE /api/admin/tickets/{numero}/adjuntos  → eliminar TODOS los adjuntos
+    @DeleteMapping("/tickets/{numero}/adjuntos")
+    public ResponseEntity<AdminDTO.OperacionResponse> eliminarTodosAdjuntos(@PathVariable int numero) {
+        return ResponseEntity.ok(servicioAdmin.eliminarTodosAdjuntos(numero));
+    }
+
+    // PUT /api/admin/incidencias/{id}  → editar incidencia
+    @PutMapping("/incidencias/{id}")
+    public ResponseEntity<AdminDTO.OperacionResponse> editarIncidencia(
+            @PathVariable long id,
+            @RequestBody AccionesAdminDTO.EditarIncidenciaRequest req
+    ) {
+        return ResponseEntity.ok(servicioAdmin.editarIncidencia(id, req));
+    }
+
+    // DELETE /api/admin/incidencias/{id}  → borrar incidencia
+    @DeleteMapping("/incidencias/{id}")
+    public ResponseEntity<AdminDTO.OperacionResponse> eliminarIncidencia(@PathVariable long id) {
+        return ResponseEntity.ok(servicioAdmin.eliminarIncidencia(id));
     }
 }

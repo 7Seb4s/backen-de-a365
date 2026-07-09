@@ -1,6 +1,16 @@
 package com.backdea365.app.service;
 
 import com.backdea365.app.dto.AdminDTO;
+import com.backdea365.app.dto.ReportesDTO;
+import com.backdea365.app.dto.AccionesAdminDTO;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.web.multipart.MultipartFile;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
+import java.util.UUID;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
@@ -64,7 +74,8 @@ public class ServicioAdmin {
                         timestampToString(rs.getTimestamp("actualizado_en")),
                         rs.getString("estado"),
                         rs.getString("subestado"),
-                        rs.getString("preview_ultimo_mensaje")
+                        rs.getString("preview_ultimo_mensaje"),
+                        rs.getObject("total_adjuntos", Integer.class)
                 ),
                 columna,
                 texto == null ? "" : texto.trim()
@@ -192,6 +203,7 @@ public class ServicioAdmin {
         return jdbc.query(
                 "CALL sp_admin_ticket_adjuntos(?)",
                 (rs, n) -> new AdminDTO.TicketAdjunto(
+                        rs.getObject("id_adjunto", Long.class),
                         rs.getString("nombre_archivo"),
                         rs.getObject("tamano_kb", Integer.class),
                         rs.getString("ruta"),
@@ -460,6 +472,186 @@ public class ServicioAdmin {
         } catch (Exception e) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Incidencia no encontrada");
         }
+    }
+
+    // ═══════════════════════════════════════════════════
+    //  ACCIONES: EDITAR / ELIMINAR / ADJUNTOS
+    // ═══════════════════════════════════════════════════
+
+    // Carpeta donde se guardan los adjuntos de tickets
+    @Value("${app.upload.adjuntos:uploads/adjuntos}")
+    private String adjuntosDir;
+
+    // ── Editar ticket ──
+    public AdminDTO.OperacionResponse editarTicket(int numero, AccionesAdminDTO.EditarTicketRequest req) {
+        jdbc.update("CALL sp_admin_ticket_actualizar(?, ?, ?, ?, ?)",
+                numero, req.getAsunto(), req.getTipo(), req.getPrioridad(), req.getDescripcion());
+        return new AdminDTO.OperacionResponse("Ticket actualizado correctamente");
+    }
+
+    // ── Eliminar ticket ──
+    public AdminDTO.OperacionResponse eliminarTicket(int numero) {
+        // Borrar archivos físicos de los adjuntos antes de eliminar el ticket
+        List<String> rutas = jdbc.query(
+                "SELECT ta.ruta FROM ticket_adjuntos ta " +
+                "JOIN tickets t ON t.id_ticket = ta.id_ticket WHERE t.numero_ticket = ?",
+                (rs, n) -> rs.getString("ruta"), numero);
+        rutas.forEach(this::borrarArchivoFisico);
+
+        int filas = jdbc.update("CALL sp_admin_ticket_eliminar(?)", numero);
+        if (filas == 0) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Ticket no encontrado");
+        return new AdminDTO.OperacionResponse("Ticket eliminado correctamente");
+    }
+
+    // ── Editar incidencia ──
+    public AdminDTO.OperacionResponse editarIncidencia(long id, AccionesAdminDTO.EditarIncidenciaRequest req) {
+        jdbc.update("CALL sp_admin_incidencia_actualizar(?, ?, ?, ?)",
+                id, req.getAsunto(), req.getTipo(), req.getContenido());
+        return new AdminDTO.OperacionResponse("Incidencia actualizada correctamente");
+    }
+
+    // ── Eliminar incidencia ──
+    public AdminDTO.OperacionResponse eliminarIncidencia(long id) {
+        int filas = jdbc.update("CALL sp_admin_incidencia_eliminar(?)", id);
+        if (filas == 0) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Incidencia no encontrada");
+        return new AdminDTO.OperacionResponse("Incidencia eliminada correctamente");
+    }
+
+    // ── Subir un adjunto a un ticket ──
+    public AccionesAdminDTO.AdjuntoResponse subirAdjunto(int numero, MultipartFile archivo) {
+        if (archivo == null || archivo.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "No se envió ningún archivo");
+        }
+        if (archivo.getSize() > 5 * 1024 * 1024) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "El archivo no puede superar 5 MB");
+        }
+
+        // Resolver el id_ticket interno a partir del numero
+        Long idTicket;
+        try {
+            idTicket = jdbc.queryForObject(
+                    "SELECT id_ticket FROM tickets WHERE numero_ticket = ?", Long.class, numero);
+        } catch (Exception e) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Ticket no encontrado");
+        }
+
+        // Guardar el archivo en disco con nombre único
+        Path carpeta = Paths.get(adjuntosDir).toAbsolutePath();
+        try {
+            Files.createDirectories(carpeta);
+        } catch (IOException e) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "No se pudo crear el directorio de adjuntos");
+        }
+
+        String original = archivo.getOriginalFilename() != null ? archivo.getOriginalFilename() : "archivo";
+        String nombreFisico = "ticket_" + numero + "_" + UUID.randomUUID() + "_" + original.replaceAll("[^a-zA-Z0-9._-]", "_");
+        Path destino = carpeta.resolve(nombreFisico);
+        try {
+            Files.copy(archivo.getInputStream(), destino, StandardCopyOption.REPLACE_EXISTING);
+        } catch (IOException e) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Error al guardar el archivo");
+        }
+
+        String rutaPublica = "/uploads/adjuntos/" + nombreFisico;
+        int tamanoKb = (int) Math.max(1, archivo.getSize() / 1024);
+
+        // Insertar la fila del adjunto
+        jdbc.update(
+                "INSERT INTO ticket_adjuntos (id_ticket, nombre_archivo, tamano_kb, ruta) VALUES (?, ?, ?, ?)",
+                idTicket, original, tamanoKb, rutaPublica);
+
+        Long idAdjunto = jdbc.queryForObject("SELECT LAST_INSERT_ID()", Long.class);
+
+        return new AccionesAdminDTO.AdjuntoResponse(
+                idAdjunto != null ? idAdjunto : 0, original, tamanoKb, rutaPublica, "Archivo agregado correctamente");
+    }
+
+    // ── Eliminar un adjunto específico de un ticket ──
+    public AdminDTO.OperacionResponse eliminarAdjunto(int numero, long idAdjunto) {
+        String ruta = jdbc.query(
+                "SELECT ta.ruta FROM ticket_adjuntos ta JOIN tickets t ON t.id_ticket = ta.id_ticket " +
+                "WHERE t.numero_ticket = ? AND ta.id_adjunto = ?",
+                (rs, n) -> rs.getString("ruta"), numero, idAdjunto).stream().findFirst().orElse(null);
+
+        int filas = jdbc.update("DELETE FROM ticket_adjuntos WHERE id_adjunto = ?", idAdjunto);
+        if (filas == 0) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Adjunto no encontrado");
+        borrarArchivoFisico(ruta);
+        return new AdminDTO.OperacionResponse("Archivo eliminado correctamente");
+    }
+
+    // ── Eliminar TODOS los adjuntos de un ticket ──
+    public AdminDTO.OperacionResponse eliminarTodosAdjuntos(int numero) {
+        List<String> rutas = jdbc.query(
+                "SELECT ta.ruta FROM ticket_adjuntos ta JOIN tickets t ON t.id_ticket = ta.id_ticket " +
+                "WHERE t.numero_ticket = ?",
+                (rs, n) -> rs.getString("ruta"), numero);
+
+        jdbc.update(
+                "DELETE ta FROM ticket_adjuntos ta JOIN tickets t ON t.id_ticket = ta.id_ticket " +
+                "WHERE t.numero_ticket = ?", numero);
+        rutas.forEach(this::borrarArchivoFisico);
+        return new AdminDTO.OperacionResponse("Documentos eliminados correctamente");
+    }
+
+    // Borra un archivo del disco a partir de su ruta pública (/uploads/adjuntos/xxx)
+    private void borrarArchivoFisico(String rutaPublica) {
+        if (rutaPublica == null || rutaPublica.isBlank()) return;
+        try {
+            String nombre = Paths.get(rutaPublica).getFileName().toString();
+            Files.deleteIfExists(Paths.get(adjuntosDir).toAbsolutePath().resolve(nombre));
+        } catch (IOException ignored) {
+            // No es crítico si no se puede borrar el archivo físico
+        }
+    }
+
+    // ═══════════════════════════════════════════════════
+    //  REPORTES
+    // ═══════════════════════════════════════════════════
+
+    // Arma la respuesta completa de la pantalla de Reportes:
+    // KPIs (totales de toda la BD) + historial de tickets cerrados.
+    public ReportesDTO.ReporteResponse obtenerReportes() {
+        ReportesDTO.Kpis kpis = jdbc.queryForObject(
+                "CALL sp_admin_reportes_kpis()",
+                (rs, n) -> {
+                    Integer promMin = rs.getObject("prom_minutos", Integer.class);
+                    String tiempo = (promMin != null) ? promMin + " min" : "—";
+                    return new ReportesDTO.Kpis(
+                            rs.getInt("total_resueltos"),
+                            rs.getInt("total_pendientes"),
+                            rs.getInt("total_incidencias"),
+                            tiempo
+                    );
+                }
+        );
+
+        List<ReportesDTO.HistorialItem> historial = jdbc.query(
+                "CALL sp_admin_reportes_historial()",
+                (rs, n) -> {
+                    String estadoBd = rs.getString("estado");
+                    boolean atendido = "ATENDIDO".equalsIgnoreCase(estadoBd);
+                    Integer min = rs.getObject("minutos", Integer.class);
+
+                    return new ReportesDTO.HistorialItem(
+                            "#" + rs.getInt("numero_ticket"),
+                            rs.getString("usuario"),
+                            rs.getString("tipo_ticket"),
+                            atendido ? "Resuelto" : "Cancelado",
+                            atendido ? "badge-verde" : "badge-rojo",
+                            formatearFechaCorta(rs.getTimestamp("fecha")),
+                            (atendido && min != null) ? min + " min" : "—"
+                    );
+                }
+        );
+
+        return new ReportesDTO.ReporteResponse(kpis, historial);
+    }
+
+    // "2026-05-25 ..." → "25/05/2026"
+    private String formatearFechaCorta(Timestamp ts) {
+        if (ts == null) return "—";
+        return ts.toLocalDateTime()
+                 .format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy"));
     }
 
     // ═══════════════════════════════════════════════════

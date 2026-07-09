@@ -82,6 +82,7 @@ public class AdminDTO {
     @NoArgsConstructor
     @AllArgsConstructor
     public static class TicketAdjunto {
+        private Long    idAdjunto;
         private String  nombreArchivo;
         private Integer tamanoKb;
         private String  ruta;
@@ -121,6 +122,7 @@ public class AdminDTO {
         private String  estado;
         private String  subestado;
         private String  previewUltimoMensaje;
+        private Integer totalAdjuntos;
     }
 
     // ── Perfil completo de un usuario para la vista "Revisar" ──

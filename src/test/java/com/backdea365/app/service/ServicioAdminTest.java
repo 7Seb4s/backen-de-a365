@@ -1,6 +1,7 @@
 package com.backdea365.app.service;
 
 import com.backdea365.app.dto.AdminDTO;
+import com.backdea365.app.dto.AccionesAdminDTO;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -135,7 +136,8 @@ public class ServicioAdminTest {
                 "2026-06-08T19:30:00",
                 "EN_REVISION",
                 "ASIGNADO",
-                "El usuario no puede ingresar"
+                "El usuario no puede ingresar",
+                2
         );
         List<AdminDTO.TableroTicketItem> listaMock = List.of(itemMock);
 
@@ -204,5 +206,76 @@ public class ServicioAdminTest {
         assertThat(resultado.getTotal()).isEqualTo(0);
         assertThat(resultado.getPendientes()).isEqualTo(0);
         assertThat(resultado.getPctAtendidos()).isEqualTo(0);
+    }
+
+    // ═══════════════════════════════════════════════════
+    //  PRUEBAS DE ACCIONES: EDITAR / ELIMINAR
+    // ═══════════════════════════════════════════════════
+
+    @Test
+    public void editarTicket_DebeRetornarMensajeExitoso() {
+        // Arrange
+        AccionesAdminDTO.EditarTicketRequest req = new AccionesAdminDTO.EditarTicketRequest();
+        req.setAsunto("Asunto actualizado");
+        req.setTipo("SOPORTE");
+        req.setPrioridad("ALTA");
+        req.setDescripcion("Descripción nueva");
+
+        Mockito.when(jdbc.update(eq("CALL sp_admin_ticket_actualizar(?, ?, ?, ?, ?)"),
+                        eq(1001), anyString(), anyString(), anyString(), anyString()))
+                .thenReturn(1);
+
+        // Act
+        AdminDTO.OperacionResponse resultado = servicioAdmin.editarTicket(1001, req);
+
+        // Assert
+        assertThat(resultado.getMensaje()).contains("actualizado");
+    }
+
+    @Test
+    public void eliminarTicket_DebeLanzar404_CuandoNoExiste() {
+        // Arrange: el SP no encuentra el ticket
+        Mockito.when(jdbc.query(anyString(), any(RowMapper.class), eq(9999)))
+                .thenReturn(Collections.emptyList());
+        Mockito.when(jdbc.update(eq("CALL sp_admin_ticket_eliminar(?)"), eq(9999)))
+                .thenReturn(0);
+
+        // Act & Assert
+        assertThatThrownBy(() -> servicioAdmin.eliminarTicket(9999))
+                .isInstanceOf(ResponseStatusException.class)
+                .extracting(ex -> ((ResponseStatusException) ex).getStatusCode())
+                .isEqualTo(HttpStatus.NOT_FOUND);
+    }
+
+    @Test
+    public void editarIncidencia_DebeRetornarMensajeExitoso() {
+        // Arrange
+        AccionesAdminDTO.EditarIncidenciaRequest req = new AccionesAdminDTO.EditarIncidenciaRequest();
+        req.setAsunto("Incidencia editada");
+        req.setTipo("CONSULTA");
+        req.setContenido("Contenido nuevo");
+
+        Mockito.when(jdbc.update(eq("CALL sp_admin_incidencia_actualizar(?, ?, ?, ?)"),
+                        eq(1L), anyString(), anyString(), anyString()))
+                .thenReturn(1);
+
+        // Act
+        AdminDTO.OperacionResponse resultado = servicioAdmin.editarIncidencia(1L, req);
+
+        // Assert
+        assertThat(resultado.getMensaje()).contains("actualizada");
+    }
+
+    @Test
+    public void eliminarIncidencia_DebeLanzar404_CuandoNoExiste() {
+        // Arrange
+        Mockito.when(jdbc.update(eq("CALL sp_admin_incidencia_eliminar(?)"), eq(999L)))
+                .thenReturn(0);
+
+        // Act & Assert
+        assertThatThrownBy(() -> servicioAdmin.eliminarIncidencia(999L))
+                .isInstanceOf(ResponseStatusException.class)
+                .extracting(ex -> ((ResponseStatusException) ex).getStatusCode())
+                .isEqualTo(HttpStatus.NOT_FOUND);
     }
 }

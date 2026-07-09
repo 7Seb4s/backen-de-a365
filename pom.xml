@@ -13,7 +13,7 @@
     <groupId>com.backdea365</groupId>
     <artifactId>app</artifactId>
     <version>0.0.1-SNAPSHOT</version>
-    <n>app</n>
+    <name>app</name>
     <description>Demo project for Spring Boot</description>
 
     <properties>
@@ -132,6 +132,18 @@
             <version>2.5.0</version>
         </dependency>
 
+        <!-- Monitoreo: Actuator (expone /actuator/*) -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+
+        <!-- Monitoreo: Micrometer -> Prometheus (expone /actuator/prometheus) -->
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-registry-prometheus</artifactId>
+        </dependency>
+
         <!-- Test -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -159,6 +171,31 @@
                         </exclude>
                     </excludes>
                 </configuration>
+            </plugin>
+
+            <!-- JaCoCo — Reporte de cobertura de código -->
+            <!-- Ejecutar: mvn clean test    (genera el reporte en target/site/jacoco/index.html) -->
+            <plugin>
+                <groupId>org.jacoco</groupId>
+                <artifactId>jacoco-maven-plugin</artifactId>
+                <version>0.8.12</version>
+                <executions>
+                    <execution>
+                        <goals><goal>prepare-agent</goal></goals>
+                    </execution>
+                    <execution>
+                        <id>report</id>
+                        <phase>test</phase>
+                        <goals><goal>report</goal></goals>
+                    </execution>
+                </executions>
+            </plugin>
+            <!-- OWASP Dependency-Check — Reporte de vulnerabilidades en dependencias -->
+            <!-- Ejecutar: mvn dependency-check:check  (genera target/dependency-check-report.html) -->
+            <plugin>
+                <groupId>org.owasp</groupId>
+                <artifactId>dependency-check-maven</artifactId>
+                <version>10.0.3</version>
             </plugin>
         </plugins>
     </build>

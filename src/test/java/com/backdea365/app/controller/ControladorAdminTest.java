@@ -53,7 +53,8 @@ public class ControladorAdminTest {
                 "2026-06-08T15:30:00",
                 "EN_REVISION",
                 "CRITICO",
-                "Se detectó una latencia alta en las colas de llamadas salientes."
+                "Se detectó una latencia alta en las colas de llamadas salientes.",
+                3
         );
         when(servicioAdmin.obtenerColumnaTablero(eq("EN_REVISION"), any())).thenReturn(List.of(item));
 

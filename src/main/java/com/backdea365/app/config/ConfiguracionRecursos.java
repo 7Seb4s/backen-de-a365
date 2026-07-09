@@ -16,6 +16,9 @@ public class ConfiguracionRecursos implements WebMvcConfigurer {
     @Value("${app.upload.dir:uploads/fotos}")
     private String uploadDir;
 
+    @Value("${app.upload.adjuntos:uploads/adjuntos}")
+    private String adjuntosDir;
+
     @Override
     public void addResourceHandlers(ResourceHandlerRegistry registry) {
         // Convierte la ruta relativa a una ruta absoluta con prefijo file:
@@ -23,5 +26,10 @@ public class ConfiguracionRecursos implements WebMvcConfigurer {
 
         registry.addResourceHandler("/uploads/fotos/**")
                 .addResourceLocations("file:" + rutaAbsoluta + "/");
+
+        // Adjuntos de tickets
+        String rutaAdjuntos = Paths.get(adjuntosDir).toAbsolutePath().toString();
+        registry.addResourceHandler("/uploads/adjuntos/**")
+                .addResourceLocations("file:" + rutaAdjuntos + "/");
     }
 }

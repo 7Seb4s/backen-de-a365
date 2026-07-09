@@ -59,7 +59,9 @@ public class ConfiguracionSeguridad {
                                 "/api/auth/recuperar/cambiar",
                                 "/swagger-ui/**",
                                 "/v3/api-docs/**",
-                                "/uploads/fotos/**"
+                                "/uploads/fotos/**",
+                                "/uploads/adjuntos/**",
+                                "/actuator/**"
                         ).permitAll()
                         .anyRequest().authenticated()
                 )
