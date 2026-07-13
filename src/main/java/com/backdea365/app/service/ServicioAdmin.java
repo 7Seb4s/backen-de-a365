@@ -25,6 +25,7 @@ import org.springframework.web.server.ResponseStatusException;
 import java.sql.Time;
 import java.sql.Timestamp;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 // Lógica de negocio para el panel de administración
@@ -482,6 +483,22 @@ public class ServicioAdmin {
     @Value("${app.upload.adjuntos:uploads/adjuntos}")
     private String adjuntosDir;
 
+    // Lista blanca de adjuntos permitidos. Bloquea HTML, SVG, JS y ejecutables que
+    // podrian usarse para XSS almacenado o distribucion de malware al servirse el archivo.
+    private static final Set<String> ADJUNTO_EXT_PERMITIDAS = Set.of(
+            ".pdf", ".png", ".jpg", ".jpeg", ".gif", ".webp",
+            ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx",
+            ".txt", ".csv", ".zip");
+    private static final Set<String> ADJUNTO_MIME_PERMITIDOS = Set.of(
+            "application/pdf", "image/png", "image/jpeg", "image/gif", "image/webp",
+            "application/msword",
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            "application/vnd.ms-excel",
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            "application/vnd.ms-powerpoint",
+            "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+            "text/plain", "text/csv", "application/zip");
+
     // ── Editar ticket ──
     public AdminDTO.OperacionResponse editarTicket(int numero, AccionesAdminDTO.EditarTicketRequest req) {
         jdbc.update("CALL sp_admin_ticket_actualizar(?, ?, ?, ?, ?)",
@@ -526,6 +543,20 @@ public class ServicioAdmin {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "El archivo no puede superar 5 MB");
         }
 
+        // Validar tipo de archivo (lista blanca de extension + MIME) para evitar
+        // subir HTML/SVG/JS que, al servirse en el mismo origen, habilitarian XSS almacenado.
+        String nombreOriginal = archivo.getOriginalFilename() != null
+                ? archivo.getOriginalFilename() : "archivo";
+        int puntoExt = nombreOriginal.lastIndexOf('.');
+        String extension = (puntoExt >= 0) ? nombreOriginal.substring(puntoExt).toLowerCase() : "";
+        String mime = archivo.getContentType();
+        if (!ADJUNTO_EXT_PERMITIDAS.contains(extension)
+                || mime == null
+                || !ADJUNTO_MIME_PERMITIDOS.contains(mime.toLowerCase())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Tipo de archivo no permitido. Formatos aceptados: PDF, imagenes, Office, TXT/CSV, ZIP.");
+        }
+
         // Resolver el id_ticket interno a partir del numero
         Long idTicket;
         try {
@@ -543,7 +574,7 @@ public class ServicioAdmin {
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "No se pudo crear el directorio de adjuntos");
         }
 
-        String original = archivo.getOriginalFilename() != null ? archivo.getOriginalFilename() : "archivo";
+        String original = nombreOriginal;
         String nombreFisico = "ticket_" + numero + "_" + UUID.randomUUID() + "_" + original.replaceAll("[^a-zA-Z0-9._-]", "_");
         Path destino = carpeta.resolve(nombreFisico);
         try {

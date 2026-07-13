@@ -55,21 +55,24 @@ public class ServicioAutenticacionTest {
     // ═══════════════════════════════════════════════════
 
     @Test
-    public void login_DebeLanzarNotFound_CuandoCodigoNoExiste() {
+    public void login_DebeLanzarUnauthorizedGenerico_CuandoCodigoNoExiste() {
         AuthDTO.LoginRequest request = new AuthDTO.LoginRequest();
         request.setCodigo("EMP999");
         request.setPassword("clave123");
 
         Mockito.when(repositorioUsuario.buscarPorCodigo("EMP999"))
                 .thenReturn(Optional.empty());
+        // Se compara contra un hash ficticio para igualar el tiempo de respuesta (anti-enumeracion)
+        Mockito.when(encoder.matches(eq("clave123"), anyString())).thenReturn(false);
 
+        // Respuesta generica: NO revela que el codigo no existe (mismo 401 que contrasena mala)
         assertThatThrownBy(() -> servicioAutenticacion.login(request))
                 .isInstanceOf(ResponseStatusException.class)
-                .hasMessageContaining("Codigo no encontrado")
+                .hasMessageContaining("Credenciales invalidas")
                 .extracting(ex -> ((ResponseStatusException) ex).getStatusCode())
-                .isEqualTo(HttpStatus.NOT_FOUND);
+                .isEqualTo(HttpStatus.UNAUTHORIZED);
 
-        Mockito.verifyNoInteractions(encoder, utilJWT, jdbc);
+        Mockito.verifyNoInteractions(utilJWT, jdbc);
     }
 
     @Test
@@ -90,7 +93,7 @@ public class ServicioAutenticacionTest {
 
         assertThatThrownBy(() -> servicioAutenticacion.login(request))
                 .isInstanceOf(ResponseStatusException.class)
-                .hasMessageContaining("Contrasena incorrecta")
+                .hasMessageContaining("Credenciales invalidas")
                 .extracting(ex -> ((ResponseStatusException) ex).getStatusCode())
                 .isEqualTo(HttpStatus.UNAUTHORIZED);
 

@@ -7,6 +7,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
@@ -48,7 +49,19 @@ public class ControladorIncidencia {
     // GET /api/incidencias/{id}
     // Devuelve el detalle completo de una incidencia (boton "Revisar")
     @GetMapping("/{id}")
-    public ResponseEntity<IncidenciaDTO.DetalleResponse> detalle(@PathVariable Long id) {
-        return ResponseEntity.ok(servicioIncidencia.obtenerDetalle(id));
+    public ResponseEntity<IncidenciaDTO.DetalleResponse> detalle(
+            @PathVariable Long id,
+            @AuthenticationPrincipal UserDetails userDetails
+    ) {
+        Integer idUsuario = servicioDetalleUsuario.obtenerIdPorCodigo(userDetails.getUsername());
+        boolean puedeVerTodo = tieneRolAdministrativo(userDetails);
+        return ResponseEntity.ok(servicioIncidencia.obtenerDetalle(id, idUsuario, puedeVerTodo));
+    }
+
+    // Un ADMINISTRADOR o GERENTE puede ver cualquier incidencia; un EMPLEADO solo las suyas.
+    private boolean tieneRolAdministrativo(UserDetails userDetails) {
+        return userDetails.getAuthorities().stream()
+                .map(GrantedAuthority::getAuthority)
+                .anyMatch(r -> r.equals("ROLE_ADMINISTRADOR") || r.equals("ROLE_GERENTE"));
     }
 }

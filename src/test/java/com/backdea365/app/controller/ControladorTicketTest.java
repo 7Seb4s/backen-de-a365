@@ -123,6 +123,11 @@ public class ControladorTicketTest {
     public void testDetalle_ConNumeroTicketValido_DebeRetornarDetalleCompletoYStatus200() throws Exception {
         // Arrange
         Integer numeroTicketParam = 2026;
+        String codigoTrabajadorMock = "AGENT-99";
+        int idUsuarioSimulado = 45;
+
+        when(userDetails.getUsername()).thenReturn(codigoTrabajadorMock);
+        when(servicioDetalleUsuario.obtenerIdPorCodigo(codigoTrabajadorMock)).thenReturn(idUsuarioSimulado);
 
         TicketDTO.DetalleResponse detalleMock = new TicketDTO.DetalleResponse(
                 "Erik Smit Ventura", "Perú", 12, 2, "18:45", "1:05:22",
@@ -130,8 +135,8 @@ public class ControladorTicketTest {
                 "#2026", "Soporte Técnico", "ALTA", "AGENT-99"
         );
 
-
-        when(servicioTicket.obtenerDetalle(numeroTicketParam)).thenReturn(detalleMock);
+        // Sin rol administrativo (getAuthorities vacío por defecto) -> puedeVerTodo = false
+        when(servicioTicket.obtenerDetalle(numeroTicketParam, idUsuarioSimulado, false)).thenReturn(detalleMock);
 
         // Act & Assert
         mockMvc.perform(get("/api/tickets/{numero}", numeroTicketParam))

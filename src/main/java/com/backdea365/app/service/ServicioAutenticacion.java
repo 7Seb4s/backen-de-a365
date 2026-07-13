@@ -31,11 +31,27 @@ public class ServicioAutenticacion {
     // Expira a las 8 horas (igual que el JWT) y tiene un maximo de 500 entradas
     private Cache<Integer, String> cacheNombres;
 
+    // ── Anti fuerza bruta: cuenta intentos de login fallidos por codigo ──
+    // Tras MAX_INTENTOS fallos el codigo queda bloqueado durante la ventana de la cache
+    private static final int MAX_INTENTOS = 5;
+    private Cache<String, Integer> intentosFallidos;
+
+    // Hash BCrypt ficticio para igualar el tiempo de respuesta cuando el codigo no existe
+    // (evita distinguir "usuario inexistente" de "contrasena incorrecta" por timing)
+    private static final String HASH_FICTICIO =
+            "$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy";
+
     @PostConstruct
     private void inicializarCache() {
         cacheNombres = CacheBuilder.newBuilder()
                 .expireAfterWrite(8, TimeUnit.HOURS)  // se limpia al mismo tiempo que el JWT
                 .maximumSize(500)                      // maximo 500 usuarios en cache
+                .build();
+
+        // Los intentos fallidos se olvidan tras 15 minutos (desbloqueo automatico)
+        intentosFallidos = CacheBuilder.newBuilder()
+                .expireAfterWrite(15, TimeUnit.MINUTES)
+                .maximumSize(10_000)
                 .build();
     }
 
@@ -45,17 +61,36 @@ public class ServicioAutenticacion {
     // Paso 3: genera el token JWT y devuelve los datos del usuario
     public AuthDTO.LoginResponse login(AuthDTO.LoginRequest peticion) {
 
-        // Buscar el usuario activo por codigo
-        UsuarioLogin usuario = repositorioUsuario
-                .buscarPorCodigo(peticion.getCodigo())
-                .orElseThrow(() ->
-                        new ResponseStatusException(HttpStatus.NOT_FOUND, "Codigo no encontrado")
-                );
+        String codigo = peticion.getCodigo();
 
-        // Verificar que la contrasena coincida con el hash BCrypt guardado
-        if (!encoder.matches(peticion.getPassword(), usuario.getClaveHash())) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Contrasena incorrecta");
+        // Bloqueo temporal tras demasiados intentos fallidos (anti fuerza bruta)
+        Integer fallosPrevios = intentosFallidos.getIfPresent(codigo);
+        if (fallosPrevios != null && fallosPrevios >= MAX_INTENTOS) {
+            throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS,
+                    "Demasiados intentos fallidos. Intenta de nuevo en unos minutos.");
         }
+
+        // Buscar el usuario activo por codigo (sin revelar si existe o no)
+        UsuarioLogin usuario = repositorioUsuario.buscarPorCodigo(codigo).orElse(null);
+
+        // Verificar la contrasena. Si el usuario no existe se compara igual contra un
+        // hash ficticio para que el tiempo de respuesta sea el mismo (evita enumeracion).
+        boolean credencialesOk;
+        if (usuario != null) {
+            credencialesOk = encoder.matches(peticion.getPassword(), usuario.getClaveHash());
+        } else {
+            encoder.matches(peticion.getPassword(), HASH_FICTICIO); // iguala el tiempo
+            credencialesOk = false;
+        }
+
+        if (!credencialesOk) {
+            registrarIntentoFallido(codigo);
+            // Mensaje y codigo genericos: no distingue "no existe" de "contrasena incorrecta"
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Credenciales invalidas");
+        }
+
+        // Login correcto: limpiar el contador de intentos
+        intentosFallidos.invalidate(codigo);
 
         // Buscar el nombre completo usando el cache de Guava
         // Si ya esta en cache no hace la query a la BD
@@ -102,6 +137,12 @@ public class ServicioAutenticacion {
         }
 
         return nombre;
+    }
+
+    // Suma un intento de login fallido para el codigo dado
+    private void registrarIntentoFallido(String codigo) {
+        Integer actual = intentosFallidos.getIfPresent(codigo);
+        intentosFallidos.put(codigo, actual == null ? 1 : actual + 1);
     }
 
     // Consulta usuario_detalle para obtener el nombre del trabajador

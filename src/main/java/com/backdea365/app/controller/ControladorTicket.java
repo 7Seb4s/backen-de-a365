@@ -7,6 +7,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
@@ -38,8 +39,21 @@ public class ControladorTicket {
     // Devuelve el detalle completo del ticket para mostrar en el modal "Estado del ticket"
     // El parametro es el numero_ticket (no el id interno)
     @GetMapping("/{numero}")
-    public ResponseEntity<TicketDTO.DetalleResponse> detalle(@PathVariable Integer numero) {
-        return ResponseEntity.ok(servicioTicket.obtenerDetalle(numero));
+    public ResponseEntity<TicketDTO.DetalleResponse> detalle(
+            @PathVariable Integer numero,
+            @AuthenticationPrincipal UserDetails userDetails
+    ) {
+        Integer idUsuario = servicioDetalleUsuario.obtenerIdPorCodigo(userDetails.getUsername());
+        boolean puedeVerTodo = tieneRolAdministrativo(userDetails);
+        return ResponseEntity.ok(servicioTicket.obtenerDetalle(numero, idUsuario, puedeVerTodo));
+    }
+
+    // Un ADMINISTRADOR o GERENTE puede ver el detalle de cualquier ticket;
+    // un EMPLEADO solo los suyos.
+    private boolean tieneRolAdministrativo(UserDetails userDetails) {
+        return userDetails.getAuthorities().stream()
+                .map(GrantedAuthority::getAuthority)
+                .anyMatch(r -> r.equals("ROLE_ADMINISTRADOR") || r.equals("ROLE_GERENTE"));
     }
 
     // POST /api/tickets

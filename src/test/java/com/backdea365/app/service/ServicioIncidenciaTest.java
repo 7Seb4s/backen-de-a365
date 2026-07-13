@@ -194,8 +194,8 @@ public class ServicioIncidenciaTest {
         Mockito.when(jdbc.queryForObject(eq("CALL sp_incidencias_detalle(?)"), any(RowMapper.class), eq(idIncidencia)))
                 .thenReturn(responseMock);
 
-        // Act
-        IncidenciaDTO.DetalleResponse resultado = servicioIncidencia.obtenerDetalle(idIncidencia);
+        // Act — rol administrativo (puedeVerTodo = true), no se valida propiedad
+        IncidenciaDTO.DetalleResponse resultado = servicioIncidencia.obtenerDetalle(idIncidencia, 1, true);
 
         // Assert
         assertThat(resultado).isNotNull();
@@ -214,7 +214,7 @@ public class ServicioIncidenciaTest {
                 .thenThrow(new org.springframework.dao.EmptyResultDataAccessException(1));
 
         // Act & Assert
-        assertThatThrownBy(() -> servicioIncidencia.obtenerDetalle(idInexistente))
+        assertThatThrownBy(() -> servicioIncidencia.obtenerDetalle(idInexistente, 1, true))
                 .isInstanceOf(ResponseStatusException.class)
                 .hasMessageContaining("Incidencia no encontrada")
                 .extracting(ex -> ((ResponseStatusException) ex).getStatusCode())

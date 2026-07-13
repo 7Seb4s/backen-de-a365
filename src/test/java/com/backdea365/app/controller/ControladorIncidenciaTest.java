@@ -121,8 +121,14 @@ public class ControladorIncidenciaTest {
 
     @Test
     public void testDetalle_IdValido_RetornaDetalleCompletoYStatus200() throws Exception {
-        // Arrange: Este test no interactúa con mockUserDetails, por ende no arrojará UnnecessaryStubbingException
+        // Arrange: un EMPLEADO consulta el detalle de su propia incidencia
         Long idIncidencia = 250L;
+        String codigoTrabajadorMock = "SUP-4512";
+        int idUsuarioSimulado = 12;
+
+        when(mockUserDetails.getUsername()).thenReturn(codigoTrabajadorMock);
+        when(servicioDetalleUsuario.obtenerIdPorCodigo(codigoTrabajadorMock)).thenReturn(idUsuarioSimulado);
+
         IncidenciaDTO.DetalleResponse detalle = new IncidenciaDTO.DetalleResponse(
                 idIncidencia,
                 "Caída del módulo de asignación manual de leads",
@@ -135,7 +141,8 @@ public class ControladorIncidenciaTest {
                 "erik.ventura@impulsaa365.com"
         );
 
-        when(servicioIncidencia.obtenerDetalle(idIncidencia)).thenReturn(detalle);
+        // Sin rol administrativo (getAuthorities vacío por defecto) -> puedeVerTodo = false
+        when(servicioIncidencia.obtenerDetalle(idIncidencia, idUsuarioSimulado, false)).thenReturn(detalle);
 
         // Act & Assert
         mockMvc.perform(get("/api/incidencias/{id}", idIncidencia))

@@ -51,7 +51,7 @@ public class ServicioTicket {
 
     // ── Detalle completo para el modal "Estado del ticket" ──
     // Usa sp_ticket_mas_info + 2 consultas extra para estadisticas globales del solicitante
-    public TicketDTO.DetalleResponse obtenerDetalle(Integer numeroTicket) {
+    public TicketDTO.DetalleResponse obtenerDetalle(Integer numeroTicket, Integer idUsuario, boolean puedeVerTodo) {
 
         Map<String, Object> fila;
         try {
@@ -65,6 +65,12 @@ public class ServicioTicket {
                 "SELECT id_solicitante FROM tickets WHERE numero_ticket = ?",
                 Integer.class, numeroTicket
         );
+
+        // Control de acceso: un empleado solo puede ver sus propios tickets.
+        // Se responde 404 (no 403) para no revelar la existencia de tickets ajenos.
+        if (!puedeVerTodo && (idSolicitante == null || !idSolicitante.equals(idUsuario))) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Ticket no encontrado");
+        }
 
         Integer totalTickets = jdbc.queryForObject(
                 "SELECT COUNT(*) FROM tickets WHERE id_solicitante = ?",

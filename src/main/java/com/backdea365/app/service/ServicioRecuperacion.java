@@ -5,6 +5,8 @@ import com.backdea365.app.model.ResetPassword;
 import com.backdea365.app.model.UsuarioLogin;
 import com.backdea365.app.repository.RepositorioResetPassword;
 import com.backdea365.app.repository.RepositorioUsuario;
+import com.google.common.cache.Cache;
+import com.google.common.cache.CacheBuilder;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -15,9 +17,10 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.util.Map;
-import java.util.Random;
+import java.util.concurrent.TimeUnit;
 
 // Logica del flujo completo de recuperacion de contrasena
 // Usa Resend API para enviar el codigo al correo del usuario
@@ -38,6 +41,17 @@ public class ServicioRecuperacion {
     @Value("${resend.from}")
     private String resendFrom;
 
+    // Generador criptograficamente seguro para el codigo de recuperacion
+    private final SecureRandom secureRandom = new SecureRandom();
+
+    // Anti fuerza bruta del codigo: cuenta verificaciones fallidas por correo.
+    // Al llegar a MAX_INTENTOS_CODIGO el codigo se invalida y hay que pedir uno nuevo.
+    private static final int MAX_INTENTOS_CODIGO = 5;
+    private final Cache<String, Integer> intentosCodigo = CacheBuilder.newBuilder()
+            .expireAfterWrite(15, TimeUnit.MINUTES)
+            .maximumSize(10_000)
+            .build();
+
     // Paso 1: verifica que el correo exista, genera un codigo de 6 digitos,
     // lo guarda en BD con 15 minutos de expiracion y lo envia por email via Resend
     @Transactional
@@ -53,8 +67,8 @@ public class ServicioRecuperacion {
         // Invalidar codigos anteriores del mismo correo para evitar duplicados
         repoReset.invalidarCodigos(req.getCorreo());
 
-        // Generar codigo aleatorio de 6 digitos (ej: 048291)
-        String codigo = String.format("%06d", new Random().nextInt(999999));
+        // Generar codigo de 6 digitos con generador seguro (000000 - 999999)
+        String codigo = String.format("%06d", secureRandom.nextInt(1_000_000));
 
         // Guardar el codigo en la BD con 15 minutos de expiracion
         ResetPassword reset = new ResetPassword();
@@ -73,6 +87,8 @@ public class ServicioRecuperacion {
     // Paso 2: verifica que el codigo recibido sea correcto y no haya expirado
     // Responde 400 si el codigo es incorrecto o ya expiro
     public void verificarCodigo(RecuperarDTO.VerificarRequest req) {
+        verificarNoBloqueado(req.getCorreo());
+
         ResetPassword reset = repoReset
             .buscarCodigoVigente(req.getCorreo(), LocalDateTime.now())
             .orElseThrow(() -> new ResponseStatusException(
@@ -81,17 +97,23 @@ public class ServicioRecuperacion {
             ));
 
         if (!reset.getCodigo().equals(req.getCodigo())) {
+            registrarIntentoFallidoCodigo(req.getCorreo());
             throw new ResponseStatusException(
                 HttpStatus.BAD_REQUEST,
                 "El codigo es incorrecto o ya expiro."
             );
         }
+
+        // Codigo correcto: limpiar el contador de intentos
+        intentosCodigo.invalidate(req.getCorreo());
     }
 
     // Paso 3: verifica el codigo una vez mas, encripta la nueva contrasena con BCrypt,
     // la guarda en la BD y marca el codigo como usado para que no se pueda reutilizar
     @Transactional
     public void cambiarPassword(RecuperarDTO.CambiarRequest req) {
+
+        verificarNoBloqueado(req.getCorreo());
 
         // Verificar el codigo una vez mas antes de cambiar la contrasena
         ResetPassword reset = repoReset
@@ -102,6 +124,7 @@ public class ServicioRecuperacion {
             ));
 
         if (!reset.getCodigo().equals(req.getCodigo())) {
+            registrarIntentoFallidoCodigo(req.getCorreo());
             throw new ResponseStatusException(
                 HttpStatus.BAD_REQUEST,
                 "El codigo es incorrecto o ya expiro."
@@ -122,6 +145,25 @@ public class ServicioRecuperacion {
         repoReset.save(reset);
 
         log.info("Contrasena actualizada para: {}", req.getCorreo());
+    }
+
+    // Lanza 429 si el correo supero el maximo de intentos de verificacion del codigo
+    private void verificarNoBloqueado(String correo) {
+        Integer intentos = intentosCodigo.getIfPresent(correo);
+        if (intentos != null && intentos >= MAX_INTENTOS_CODIGO) {
+            throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS,
+                "Demasiados intentos. Solicita un nuevo codigo de recuperacion.");
+        }
+    }
+
+    // Suma un intento fallido y, al llegar al maximo, invalida el codigo vigente
+    private void registrarIntentoFallidoCodigo(String correo) {
+        Integer actual = intentosCodigo.getIfPresent(correo);
+        int nuevo = (actual == null) ? 1 : actual + 1;
+        intentosCodigo.put(correo, nuevo);
+        if (nuevo >= MAX_INTENTOS_CODIGO) {
+            repoReset.invalidarCodigos(correo); // quema el codigo tras demasiados fallos
+        }
     }
 
     // Llama a la API de Resend para enviar el codigo al correo del usuario

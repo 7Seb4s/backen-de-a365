@@ -91,7 +91,7 @@ public class ServicioTicketTest {
                 .thenThrow(new org.springframework.dao.EmptyResultDataAccessException(1));
 
         // Act & Assert
-        assertThatThrownBy(() -> servicioTicket.obtenerDetalle(numeroTicket))
+        assertThatThrownBy(() -> servicioTicket.obtenerDetalle(numeroTicket, 1, true))
                 .isInstanceOf(ResponseStatusException.class)
                 .hasMessageContaining("Ticket no encontrado")
                 .extracting(ex -> ((ResponseStatusException) ex).getStatusCode())
@@ -129,8 +129,8 @@ public class ServicioTicketTest {
         Mockito.when(jdbc.queryForObject(eq("SELECT COUNT(*) FROM tickets WHERE id_solicitante = ? AND estado = 'PENDIENTE'"), eq(Integer.class), eq(idSolicitante)))
                 .thenReturn(4);  // Total pendientes
 
-        // Act
-        TicketDTO.DetalleResponse resultado = servicioTicket.obtenerDetalle(numeroTicket);
+        // Act — el solicitante (id 14) consulta su propio ticket (puedeVerTodo = false)
+        TicketDTO.DetalleResponse resultado = servicioTicket.obtenerDetalle(numeroTicket, idSolicitante, false);
 
         // Assert
         assertThat(resultado).isNotNull();

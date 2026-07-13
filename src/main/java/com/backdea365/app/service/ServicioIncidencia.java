@@ -85,7 +85,19 @@ public class ServicioIncidencia {
     }
 
     // ── Detalle de una incidencia (boton Revisar) ──
-    public IncidenciaDTO.DetalleResponse obtenerDetalle(Long idIncidencia) {
+    public IncidenciaDTO.DetalleResponse obtenerDetalle(Long idIncidencia, Integer idUsuario, boolean puedeVerTodo) {
+
+        // Control de acceso: un empleado solo puede ver sus propias incidencias.
+        // 404 en vez de 403 para no revelar la existencia de incidencias ajenas.
+        if (!puedeVerTodo) {
+            List<Integer> duenos = jdbc.query(
+                    "SELECT id_usuario FROM incidencias WHERE id_incidencia = ?",
+                    (rs, n) -> rs.getInt("id_usuario"), idIncidencia);
+            if (duenos.isEmpty() || !duenos.get(0).equals(idUsuario)) {
+                throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Incidencia no encontrada");
+            }
+        }
+
         try {
             return jdbc.queryForObject(
                     "CALL sp_incidencias_detalle(?)",
