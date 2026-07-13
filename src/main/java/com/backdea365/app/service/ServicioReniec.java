@@ -81,7 +81,7 @@ public class ServicioReniec {
         } catch (Throwable e) {
             log.error("Error consultando RENIEC para DNI {}", numero, e);
             throw new ResponseStatusException(HttpStatus.BAD_GATEWAY,
-                    "RENIEC-DEBUG: " + e.getClass().getSimpleName() + " -> " + e.getMessage());
+                    "No se pudo consultar el servicio de RENIEC. Intenta de nuevo.");
         }
     }
 
