@@ -87,10 +87,12 @@ public class ConfiguracionSeguridad {
     public CorsConfigurationSource configuracionCors() {
         CorsConfiguration config = new CorsConfiguration();
 
-        config.setAllowedOrigins(List.of(
+        config.setAllowedOriginPatterns(List.of(
                 "http://localhost:4200",
                 "http://127.0.0.1:4200",
-                "http://localhost:4000"
+                "http://localhost:4000",
+                "https://impulsa-a365-frond.vercel.app",
+                "https://*.vercel.app"
         ));
 
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
