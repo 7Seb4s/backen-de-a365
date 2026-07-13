@@ -1,6 +1,8 @@
 package com.backdea365.app.controller;
 
+import com.backdea365.app.dto.ReniecDTO;
 import com.backdea365.app.dto.UsuarioDTO;
+import com.backdea365.app.service.ServicioReniec;
 import com.backdea365.app.service.ServicioUsuario;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -20,6 +22,15 @@ import java.util.List;
 public class ControladorUsuario {
 
     private final ServicioUsuario servicioUsuario;
+    private final ServicioReniec  servicioReniec;
+
+    // GET /api/usuarios/dni/{numero}
+    // Consulta RENIEC (Decolecta) y devuelve nombres y apellidos para autocompletar
+    // el formulario de creación de usuario. Solo para ADMINISTRADOR y GERENTE.
+    @GetMapping("/dni/{numero}")
+    public ResponseEntity<ReniecDTO.Persona> consultarDni(@PathVariable String numero) {
+        return ResponseEntity.ok(servicioReniec.consultarDni(numero));
+    }
 
     // POST /api/usuarios/crear
     // Crea un nuevo usuario con código autoincremental según el rol
