@@ -10,6 +10,7 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
@@ -23,7 +24,15 @@ import java.util.List;
 @Service
 public class ServicioReniec {
 
-    private final RestTemplate rest = new RestTemplate();
+    private final RestTemplate rest;
+
+    public ServicioReniec() {
+        // Timeouts para no colgar la peticion si Decolecta no responde
+        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout(5000);
+        factory.setReadTimeout(8000);
+        this.rest = new RestTemplate(factory);
+    }
 
     // URL base y token leidos de application.properties
     @Value("${decolecta.base-url:https://api.decolecta.com}")
@@ -40,12 +49,12 @@ public class ServicioReniec {
                     "El DNI debe tener exactamente 8 dígitos");
         }
 
-        HttpHeaders headers = new HttpHeaders();
-        headers.setBearerAuth(apiKey);
-        headers.setAccept(List.of(MediaType.APPLICATION_JSON));
-        HttpEntity<Void> peticion = new HttpEntity<>(headers);
-
         try {
+            HttpHeaders headers = new HttpHeaders();
+            headers.setBearerAuth(apiKey);
+            headers.setAccept(List.of(MediaType.APPLICATION_JSON));
+            HttpEntity<Void> peticion = new HttpEntity<>(headers);
+
             ResponseEntity<ReniecDTO.ApiResponse> respuesta = rest.exchange(
                     baseUrl + "/v1/reniec/dni?numero=" + numero,
                     HttpMethod.GET,
@@ -69,10 +78,10 @@ public class ServicioReniec {
                     "Error de autenticación con el servicio de RENIEC");
         } catch (ResponseStatusException e) {
             throw e;
-        } catch (Exception e) {
-            log.error("Error consultando RENIEC para DNI {}: {}", numero, e.getMessage());
+        } catch (Throwable e) {
+            log.error("Error consultando RENIEC para DNI {}", numero, e);
             throw new ResponseStatusException(HttpStatus.BAD_GATEWAY,
-                    "No se pudo consultar el servicio de RENIEC. Intenta de nuevo.");
+                    "RENIEC-DEBUG: " + e.getClass().getSimpleName() + " -> " + e.getMessage());
         }
     }
 
