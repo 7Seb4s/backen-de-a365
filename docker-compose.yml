@@ -1,6 +1,4 @@
-# docker-compose.yml
-# Levanta Prometheus (9090) y Grafana (3000) para monitorear el backend A365.
-# Uso:  docker compose up   (o "Run all services" en Docker Desktop)
+
 services:
 
   prometheus:
@@ -11,7 +9,7 @@ services:
     volumes:
       - ./config/prometheus.yml:/etc/prometheus/prometheus.yml
     extra_hosts:
-      # Permite que el contenedor de Prometheus alcance el backend que corre en el host
+
       - "host.docker.internal:host-gateway"
     restart: unless-stopped
 
