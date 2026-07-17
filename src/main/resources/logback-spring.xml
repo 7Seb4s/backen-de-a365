@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+
+
+    <property name="LOGS_DIR" value="logs"/>
+    <property name="APP_NAME" value="proyecto-a365"/>
+
+    <property name="PATRON"
+              value="%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"/>
+
+
+    <appender name="CONSOLA" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>${PATRON}</pattern>
+        </encoder>
+    </appender>
+
+
+    <appender name="ARCHIVO" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${LOGS_DIR}/${APP_NAME}.log</file>
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+
+            <fileNamePattern>${LOGS_DIR}/${APP_NAME}.%d{yyyy-MM-dd}.%i.log.gz</fileNamePattern>
+            <maxFileSize>10MB</maxFileSize>
+            <maxHistory>30</maxHistory>
+            <totalSizeCap>500MB</totalSizeCap>
+        </rollingPolicy>
+        <encoder>
+            <pattern>${PATRON}</pattern>
+        </encoder>
+    </appender>
+
+
+    <logger name="com.backdea365.app" level="DEBUG"/>
+
+    <root level="INFO">
+        <appender-ref ref="CONSOLA"/>
+        <appender-ref ref="ARCHIVO"/>
+    </root>
+
+</configuration>

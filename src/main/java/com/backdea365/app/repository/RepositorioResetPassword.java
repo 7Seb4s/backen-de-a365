@@ -36,4 +36,11 @@ public interface RepositorioResetPassword extends JpaRepository<ResetPassword, I
     @Transactional
     @Query("UPDATE ResetPassword r SET r.usado = true WHERE r.correo = :correo")
     void invalidarCodigos(@Param("correo") String correo);
+
+    // Borra los codigos que ya no sirven: expirados o ya usados.
+    // Lo usa la tarea programada de limpieza. Devuelve cuantas filas borro.
+    @Modifying
+    @Transactional
+    @Query("DELETE FROM ResetPassword r WHERE r.expiracion < :ahora OR r.usado = true")
+    int borrarExpiradosYUsados(@Param("ahora") LocalDateTime ahora);
 }
